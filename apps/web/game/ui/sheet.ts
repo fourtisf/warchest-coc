@@ -185,7 +185,11 @@ export function renderSheet(): void {
         ⬆ Upgrade ${costHTML(B.res, nxt.c)} · ${tstr(uiBuildSeconds(b.type, b.level + 1))}</button>`;
       else h += `<button class="btn" disabled style="flex:1.5">★ Max level</button>`;
       h += `<button class="btn ghost" data-act="move" data-arg="${b.id}">✥ Move</button></div>`;
-      if (nxt && !up.ok) h += `<div class="meta" style="margin-top:8px;color:var(--bad)">${up.why}</div>`;
+      if (nxt && !up.ok) {
+        h += `<div class="meta" style="margin-top:8px;color:var(--bad)">${up.why}</div>`;
+        if (up.why?.startsWith('Requires Keep'))
+          h += `<button class="btn ghost" style="width:100%;margin-top:8px" data-act="goKeep">🏰 Upgrade your Keep first — open it</button>`;
+      }
       if (b.type === 'barracks')
         h += `<button class="btn ghost" style="width:100%;margin-top:10px" data-act="openArmy">🗡️ Train units</button>`;
     }
@@ -244,6 +248,12 @@ export function initSheet(): void {
       if (ob) clearObstacle(ob);
     } else if (act === 'rushq') {
       rushTraining();
+    } else if (act === 'goKeep') {
+      const keep = G.buildings.find((x) => x.type === 'keep');
+      if (keep) {
+        G.sel = keep.id;
+        openSheet('info', keep.id);
+      }
     } else if (act === 'openArmy') openSheet('army');
   });
 }

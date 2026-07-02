@@ -119,7 +119,7 @@ client, which renders countdowns locally and pulls `/me` when one crosses
 zero (plus a 30s freshness poll).
 
 ### D13. Real-time economy knobs
-`TIME_SCALE` (default 1) divides the spec's real durations; production is
+`TIME_SCALE` (default 1) divides the real-duration tables. The tables use a CoC-style progressive curve (L1–L3 in seconds–minutes, long waits only from L4/Keep L4) so day-one players upgrade constantly; production is
 `CFG.rate / PROD_ACCEL × TIME_SCALE` with `PROD_ACCEL=180` (the prototype's
 demo acceleration, measured from Keep L2: 20s demo ↔ 1h real). Finish-now
 uses the spec formula `max(2, ceil(min×1.5))`. All env-tunable.

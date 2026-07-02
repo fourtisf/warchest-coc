@@ -192,23 +192,24 @@ export const finishNowCostReal = (remainingSeconds: number): number =>
   Math.max(2, Math.ceil((remainingSeconds / 60) * 1.5));
 
 /**
- * Real-time durations for production (P1+), seconds. Launch values from the
- * build spec (§TIMERS); override via env / admin config at runtime.
- * Keyed per building type, per level (index 0 = build at L1).
+ * Real-time durations (P1+), seconds. CoC-style progressive curve: the first
+ * levels are seconds-to-minutes so a new player upgrades constantly on day
+ * one; long timers only appear from L4/Keep L4 up. Env-tunable via
+ * TIME_SCALE at runtime; index 0 = build at L1.
  */
 export const REAL_BUILD_TIMES: Record<BuildingType, readonly number[]> = {
-  //           L1        L2      L3      L4       L5
-  keep: [0, 3600, 21600, 86400, 172800],
-  mine: [120, 900, 3600, 14400, 43200],
-  well: [120, 900, 3600, 14400, 43200],
-  vault: [120, 900, 3600, 14400, 43200],
-  tank: [120, 900, 3600, 14400, 43200],
-  cannon: [120, 900, 3600, 14400, 43200],
-  arrow: [120, 900, 3600, 14400, 43200],
-  mortar: [900, 3600, 14400],
+  //      L1   L2    L3     L4      L5
+  keep: [0, 300, 7200, 43200, 129600], // 5m · 2h · 12h · 36h
+  mine: [10, 60, 900, 7200, 28800], // 10s · 1m · 15m · 2h · 8h
+  well: [10, 60, 900, 7200, 28800],
+  vault: [10, 60, 900, 7200, 28800],
+  tank: [10, 60, 900, 7200, 28800],
+  cannon: [10, 60, 900, 7200, 28800],
+  arrow: [10, 60, 900, 7200, 28800],
+  mortar: [300, 7200, 28800],
   wall: [0, 0, 0, 0, 0],
-  barracks: [120, 900, 3600, 14400, 43200],
-  camp: [120, 900, 3600, 14400, 43200],
+  barracks: [10, 60, 900, 7200, 28800],
+  camp: [10, 60, 900, 7200, 28800],
   hut: [0],
 };
 
