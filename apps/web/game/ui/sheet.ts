@@ -146,7 +146,7 @@ export function renderSheet(): void {
     if (G.trainQ.length) {
       const totRem = G.trainQ.reduce((a, q) => a + q.tLeft, 0);
       const rush = uiFinishCost(totRem);
-      h += `<div class="row" style="margin-top:14px"><b style="font-size:13px">Training queue</b><span class="spacer"></span>
+      h += `<div class="row" style="margin-top:14px"><b style="font-size:13px">Training queue · ${tstr(Math.max(0, totRem))} left</b><span class="spacer"></span>
         <button class="btn war" data-act="rushq">Rush ◆${rush}</button></div><div class="qWrap">`;
       G.trainQ.forEach((q, i) => {
         h += `<div class="qItem">${TROOP[q.type].emoji}

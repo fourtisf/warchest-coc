@@ -16,6 +16,7 @@ import {
 import { FX } from './fx';
 import { SFX } from './sfx';
 import { clock, G, rebuildOcc, type VillageBuilding } from './state';
+import { syncVillageUnits } from './troops';
 import { toast } from './ui/toasts';
 
 const BASE = '/api';
@@ -165,6 +166,7 @@ export function hydrate(payload: ServerVillage): void {
   lastQuestDone = { ...payload.questDone };
   G.questDone = { ...payload.questDone };
   rebuildOcc();
+  syncVillageUnits();
 }
 
 /* ------------------------------ endpoints ------------------------------ */

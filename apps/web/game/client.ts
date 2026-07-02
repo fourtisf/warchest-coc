@@ -32,6 +32,7 @@ import {
   tickTraining,
   updateQuestBadge,
 } from './systems';
+import { resetVillageUnits, tickVillageUnits } from './troops';
 import { world } from './world';
 import { renderHUD } from './ui/hud';
 import { fillWallet, initModals, openLeaderboard, openOv, openQuests, refreshMailBadge } from './ui/modals';
@@ -112,6 +113,7 @@ function update(dt: number): void {
   tickProduction(dt);
   tickJobs(dt);
   tickTraining(dt);
+  tickVillageUnits(dt);
   hudAcc += dt;
   if (hudAcc > 0.25) {
     hudAcc = 0;
@@ -204,6 +206,7 @@ export function bootGame(root: HTMLElement): () => void {
     clearInterval(mailPoll);
     disposeBattle();
     disposeCamera();
+    resetVillageUnits();
     world.ground = null;
     document.documentElement.classList.remove('wc-play');
     root.innerHTML = '';

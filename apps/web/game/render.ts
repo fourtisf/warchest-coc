@@ -10,6 +10,7 @@ import { CAM, VP, ctx2d, view, w2s } from './camera';
 import { $ } from './dom';
 import { FX } from './fx';
 import { G, jobOf, nowMs, type VillageBuilding } from './state';
+import { villageUnits } from './troops';
 import { canPlaceVillage } from './systems';
 import { groundOrThrow } from './world';
 
@@ -103,32 +104,6 @@ function drawGhost(c: CanvasRenderingContext2D): void {
   c.restore();
 }
 
-/** Troops lounging around army camps in village mode. */
-function idleUnits(): DrawableUnit[] {
-  const out: DrawableUnit[] = [];
-  if (G.mode !== 'village' && G.mode !== 'placing') return out;
-  const camps = G.buildings.filter((b) => b.type === 'camp' && !b.busy);
-  if (!camps.length) return out;
-  let ci = 0, slot = 0;
-  for (const t of TROOP_ORDER) {
-    for (let i = 0; i < Math.min(G.army[t], 12); i++) {
-      const camp = camps[ci % camps.length]!;
-      const rr = mulberry32(slot * 97 + 7);
-      const ang = rr() * Math.PI * 2, rad = 0.9 + rr() * 1.1;
-      out.push({
-        id: 1000 + slot,
-        type: t,
-        x: camp.gx + 2 + Math.cos(ang) * rad,
-        y: camp.gy + 2 + Math.sin(ang) * rad * 0.8,
-        hp: 1, maxhp: 1, moving: false, swing: 0,
-      });
-      ci++;
-      slot++;
-    }
-  }
-  return out;
-}
-
 type RenderItem =
   | { k: 'b'; o: DrawableBuilding; z: number }
   | { k: 'o'; o: (typeof G.obstacles)[number]; z: number }
@@ -171,7 +146,7 @@ export function render(): void {
       if (ob.dead) continue;
       items.push({ k: 'o', o: ob, z: ob.gx + ob.gy + 1 });
     }
-  const units: ReadonlyArray<DrawableUnit> = inBattle && G.battle ? G.battle.sim.troops : idleUnits();
+  const units: ReadonlyArray<DrawableUnit> = inBattle && G.battle ? G.battle.sim.troops : villageUnits();
   for (const u of units) {
     if (u.dead) continue;
     items.push({ k: 'u', o: u, z: u.x + u.y + (TROOP[u.type as TroopType].fly ? 3 : 0) });
@@ -196,6 +171,16 @@ export function render(): void {
           ctx.textAlign = 'center';
           ctx.fillText('🔨', p.x, top - 6);
           jobTimeText(ctx, p.x, top + 16, job.tLeft);
+        } else if (b.type === 'barracks' && G.trainQ.length) {
+          // live training: current recruit + countdown above the barracks
+          const head = G.trainQ[0]!;
+          const p = I(cx, b.gy + s / 2);
+          const top = p.y - 78;
+          hpBar(ctx, p.x, top, 34, 1 - Math.max(0, head.tLeft) / head.total, '#a26bff');
+          ctx.font = '13px sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillText(TROOP[head.type].emoji, p.x, top - 5);
+          jobTimeText(ctx, p.x, top + 16, head.tLeft);
         }
       } else if (b.hp !== undefined && b.maxhp !== undefined && b.hp < b.maxhp) {
         const p = I(cx, b.gy + s / 2);
