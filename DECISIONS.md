@@ -98,6 +98,16 @@ prototype did, and canvas text keeps the literal `Rubik` family name.
 works server-side — and nothing else. `packages/db` documents the P1 Prisma
 models. No speculative code ahead of its phase.
 
+### D11. Replay cap anchored to the first logged action
+Found by the adversarial fidelity review: the deploy screen is untimed (the
+3:00 timer starts on the first deploy, as in the prototype), so
+`simulateBattle`'s tick cap must be relative to the first log entry — a cap
+anchored to sim construction truncated replays after >5s of deploy-screen
+idle, letting the server overturn legitimate results. Fixed + regression
+test. P2 must additionally bound scout→first-deploy wall time server-side
+(matchmaking-token TTL) so hostile logs can't demand arbitrarily long empty
+pre-rolls.
+
 ## Verification (P0 gate)
 - `game-core`: 40 vitest tests — determinism (same seed+log ⇒ identical
   result across 1000 runs; live-vs-replay equality), battle rules ($WAR/

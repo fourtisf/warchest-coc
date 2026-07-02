@@ -83,6 +83,26 @@ describe('battle determinism', () => {
     expect(r.ticks).toBeLessThanOrEqual(31);
   });
 
+  it('deploy-screen idle beyond the battle window does not desync replay from live sim', () => {
+    // The deploy screen is untimed: the client keeps stepping the sim before
+    // the first deploy. Regression test for the replay cap being anchored to
+    // sim construction instead of the first logged action.
+    const base = genEnemy(777, 2);
+    const sim = new BattleSim(genEnemy(777, 2), ARMY);
+    for (let i = 0; i < 12_000; i++) sim.step(); // ~200s idling before acting
+    sim.deploy('raider', 5, 20.5);
+    sim.deploy('sniper', 5, 21.2);
+    while (!sim.over && sim.tick < 60 * 400) {
+      sim.step();
+      sim.events.length = 0;
+    }
+    if (!sim.over) sim.requestEnd();
+    const live = sim.outcome();
+    expect(live.started).toBe(true);
+    const replay = simulateBattle(base, ARMY, sim.log);
+    expect(replay).toEqual(live);
+  });
+
   it('empty log ⇒ battle never starts, no rewards', () => {
     const r = simulateBattle(genEnemy(7, 2), ARMY, []);
     expect(r.started).toBe(false);

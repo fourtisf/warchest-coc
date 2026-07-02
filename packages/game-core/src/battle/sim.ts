@@ -383,13 +383,21 @@ export class BattleSim {
   }
 }
 
-/** Absolute replay cap: battle time + end-delay slack. */
+/** Replay cap: battle time + end-delay slack, measured from the first logged action. */
 const MAX_TICKS = Math.round((BATTLE_TIME + 5) / TICK);
 
 /**
  * Server-style validation: re-simulate a recorded deploy log against a base
  * snapshot and return the authoritative outcome. Client-reported results are
  * ignored (P2 anti-cheat).
+ *
+ * The deploy screen is untimed (the 3:00 timer starts on the first deploy,
+ * as in the prototype), so log ticks are anchored wherever the attacker
+ * started acting — the cap must be relative to the first log entry, not to
+ * sim construction, or deploy-screen idle would truncate legitimate replays.
+ * P2 note: the server should still bound scout→first-deploy wall time (e.g.
+ * matchmaking-token TTL) before replaying, so a hostile log can't demand an
+ * arbitrarily long empty pre-roll.
  */
 export function simulateBattle(
   base: EnemyBase,
@@ -397,8 +405,9 @@ export function simulateBattle(
   log: readonly DeployLogEntry[],
 ): BattleOutcome {
   const sim = new BattleSim(base, army);
+  const capTick = (log.length ? log[0]!.tick : 0) + MAX_TICKS;
   let li = 0;
-  while (!sim.over && sim.tick <= MAX_TICKS) {
+  while (!sim.over && sim.tick <= capTick) {
     while (li < log.length && log[li]!.tick === sim.tick) {
       const e = log[li++]!;
       if (e.kind === 'deploy') sim.deploy(e.troop, e.x, e.y, true);
