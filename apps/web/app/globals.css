@@ -34,6 +34,13 @@ body {
     #0a0e14;
 }
 
+.landing .mark {
+  width: clamp(96px, 16vw, 148px);
+  height: auto;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 10px 28px rgba(242, 180, 48, 0.35));
+}
+
 .landing .logo {
   font-size: clamp(44px, 9vw, 84px);
   font-weight: 900;

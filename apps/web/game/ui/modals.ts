@@ -27,14 +27,24 @@ interface SolProvider {
   signMessage(msg: Uint8Array, display?: string): Promise<{ signature: Uint8Array } | Uint8Array>;
 }
 
-function getProvider(): SolProvider | null {
+type WalletKind = 'phantom' | 'solflare' | 'backpack';
+
+const WALLETS: Record<WalletKind, { name: string; icon: string; install: string }> = {
+  phantom: { name: 'Phantom', icon: '👻', install: 'https://phantom.app/download' },
+  solflare: { name: 'Solflare', icon: '🔆', install: 'https://solflare.com/download' },
+  backpack: { name: 'Backpack', icon: '🎒', install: 'https://backpack.app/download' },
+};
+
+function providerFor(kind: WalletKind): SolProvider | null {
   const w = window as unknown as {
     phantom?: { solana?: SolProvider };
-    solana?: SolProvider;
+    solana?: SolProvider & { isPhantom?: boolean };
     solflare?: SolProvider;
     backpack?: SolProvider;
   };
-  return w.phantom?.solana ?? w.solana ?? w.solflare ?? w.backpack ?? null;
+  if (kind === 'phantom') return w.phantom?.solana ?? (w.solana?.isPhantom ? w.solana : null);
+  if (kind === 'solflare') return w.solflare ?? null;
+  return w.backpack ?? null;
 }
 
 const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
@@ -59,10 +69,11 @@ function b58encode(bytes: Uint8Array): string {
   return out;
 }
 
-async function connectWallet(): Promise<void> {
-  const provider = getProvider();
+async function connectWallet(kind: WalletKind): Promise<void> {
+  const provider = providerFor(kind);
   if (!provider) {
-    toast('No Solana wallet found — install Phantom, Solflare or Backpack', 'warn');
+    window.open(WALLETS[kind].install, '_blank', 'noopener');
+    toast(`${WALLETS[kind].name} is not installed — opening its download page`, 'warn');
     return;
   }
   const res = await provider.connect();
@@ -85,17 +96,31 @@ async function connectWallet(): Promise<void> {
 export function fillWallet(): void {
   const w = $('walletBody');
   if (!G.wallet) {
-    w.innerHTML = `<button class="btn" id="wConnect" style="width:100%;padding:12px">🔗 Connect Wallet</button>
-    <div class="meta" style="margin-top:10px;color:var(--dim);text-align:center;font-size:11.5px">Sign-in with Solana (Phantom · Solflare · Backpack). One wallet = one village.</div>`;
-    $('wConnect').onclick = () => {
-      $('wConnect').textContent = 'Connecting…';
-      connectWallet()
-        .then(() => fillWallet())
-        .catch((e: unknown) => {
-          toast(e instanceof Error ? e.message : 'Wallet connection failed', 'warn');
-          fillWallet();
-        });
-    };
+    const rows = (Object.keys(WALLETS) as WalletKind[])
+      .map((k) => {
+        const detected = !!providerFor(k);
+        return `<button class="btn ${detected ? '' : 'ghost'}" data-wallet="${k}" style="width:100%;padding:12px;margin-top:8px;display:flex;align-items:center;gap:10px;justify-content:flex-start">
+          <span style="font-size:18px">${WALLETS[k].icon}</span>
+          <span style="flex:1;text-align:left">${WALLETS[k].name}</span>
+          <span style="font-size:10.5px;font-weight:800;letter-spacing:.5px;opacity:.8">${detected ? 'DETECTED' : 'INSTALL ↗'}</span>
+        </button>`;
+      })
+      .join('');
+    w.innerHTML = `<div class="meta" style="color:var(--dim);font-size:12.5px;margin-bottom:2px">One wallet = one village. Pick yours:</div>
+      ${rows}
+      <div class="meta" style="margin-top:10px;color:var(--dim);text-align:center;font-size:11px">You'll be asked to sign a login message — no transaction, no fee.</div>`;
+    w.querySelectorAll<HTMLButtonElement>('[data-wallet]').forEach((btn) => {
+      btn.onclick = () => {
+        const kind = btn.dataset.wallet as WalletKind;
+        btn.textContent = 'Connecting…';
+        connectWallet(kind)
+          .then(() => fillWallet())
+          .catch((e: unknown) => {
+            toast(e instanceof Error ? e.message : 'Wallet connection failed', 'warn');
+            fillWallet();
+          });
+      };
+    });
     return;
   }
   const claimable = Math.min(Math.floor(G.res.w), serverConfig.claimDailyCap);

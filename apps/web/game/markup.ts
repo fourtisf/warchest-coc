@@ -50,7 +50,7 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
 <!-- modals -->
 <div class="overlay show" id="intro">
   <div class="modal">
-    <div class="disp" id="introLogoWrap"><div class="logo disp">WARCHEST</div></div>
+    <div class="disp" id="introLogoWrap" style="text-align:center"><img src="/logo.svg" alt="" style="width:88px;height:88px;filter:drop-shadow(0 6px 18px rgba(242,180,48,.4))"><div class="logo disp">WARCHEST</div></div>
     <div class="tag">BUILD · RAID · EARN</div>
     <div class="feat"><div class="fi">🏰</div><div><b>Build your warcamp.</b> Mine Gold, harvest Mana, wall it all in before raiders come knocking.</div></div>
     <div class="feat"><div class="fi">⚔️</div><div><b>Raid enemy bases.</b> Train an army, deploy at the edges, and let the AI fight. 50% = ★, destroy the Keep = ★, 100% = ★★★.</div></div>
