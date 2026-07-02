@@ -150,25 +150,122 @@ curl -fsS http://127.0.0.1:8787/api/health >/dev/null && ok "api responding on :
   || { echo "api not responding"; pm2 logs warchest-api --lines 25 --nostream; exit 1; }
 
 # ------------------------------------------------------------------ 6. nginx
-log "Installing nginx site for $DOMAIN"
-install -m 644 "$APP_DIR/deploy/nginx-warchest.conf" "/etc/nginx/sites-available/$DOMAIN"
-ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
+# We write the FULL config (80 + 443) ourselves instead of letting certbot
+# edit it — certbot-managed blocks from older deploys left stale routing.
+log "Installing nginx site for $DOMAIN (deterministic 80+443 config)"
+mkdir -p /var/www/letsencrypt
+
+# kill remnants: any other enabled site or conf.d entry claiming this domain
+for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
+  [ -e "$f" ] || continue
+  [ "$(readlink -f "$f")" = "/etc/nginx/sites-available/$DOMAIN" ] && continue
+  if grep -q "server_name .*$DOMAIN" "$f" 2>/dev/null; then
+    echo "  removing stale nginx config: $f"
+    rm -f "$f"
+  fi
+done
 [ -L /etc/nginx/sites-enabled/default ] && rm -f /etc/nginx/sites-enabled/default
-nginx -t
-systemctl reload nginx
-ok "nginx serving $DOMAIN"
+
+APP_LOCATIONS=$(cat <<'LOC'
+    location /api/ {
+        proxy_pass http://127.0.0.1:8787;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 60s;
+    }
+    location /_next/static/ {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 60s;
+    }
+LOC
+)
+
+write_http_only() {
+  cat > "/etc/nginx/sites-available/$DOMAIN" <<CONF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN www.$DOMAIN;
+    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
+$APP_LOCATIONS
+}
+CONF
+}
+
+write_full_tls() {
+  local SSL_EXTRA=""
+  [ -f /etc/letsencrypt/options-ssl-nginx.conf ] && SSL_EXTRA="    include /etc/letsencrypt/options-ssl-nginx.conf;"
+  local DHP=""
+  [ -f /etc/letsencrypt/ssl-dhparams.pem ] && DHP="    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;"
+  cat > "/etc/nginx/sites-available/$DOMAIN" <<CONF
+server {
+    listen 80;
+    listen [::]:80;
+    server_name $DOMAIN www.$DOMAIN;
+    location /.well-known/acme-challenge/ { root /var/www/letsencrypt; }
+    location / { return 301 https://$DOMAIN\$request_uri; }
+}
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name $DOMAIN www.$DOMAIN;
+    ssl_certificate /etc/letsencrypt/live/$DOMAIN/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$DOMAIN/privkey.pem;
+$SSL_EXTRA
+$DHP
+$APP_LOCATIONS
+}
+CONF
+}
+
+write_http_only
+ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
+nginx -t && systemctl reload nginx
+ok "nginx serving $DOMAIN on :80"
 
 if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
-  log "Provisioning Let's Encrypt certificate"
-  if certbot --nginx -d "$DOMAIN" -d "www.$DOMAIN" --non-interactive --agree-tos -m "$CERT_EMAIL" --redirect; then
-    ok "TLS active — https://$DOMAIN"
-  else
-    echo "⚠ certbot failed (DNS propagating?). Retry: certbot --nginx -d $DOMAIN -d www.$DOMAIN --redirect -m $CERT_EMAIL --agree-tos"
-  fi
-else
-  certbot renew --quiet 2>/dev/null || true
-  ok "TLS certificate already present"
+  log "Provisioning Let's Encrypt certificate (webroot)"
+  certbot certonly --webroot -w /var/www/letsencrypt -d "$DOMAIN" -d "www.$DOMAIN" \
+    --non-interactive --agree-tos -m "$CERT_EMAIL" \
+    || echo "⚠ certbot failed (DNS propagating?) — site stays on http; re-run this script later"
 fi
+if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
+  write_full_tls
+  # http2 directive needs nginx ≥1.25; fall back for older versions
+  nginx -t 2>/dev/null || sed -i 's/^    http2 on;/    # http2 on;/; s/listen 443 ssl;/listen 443 ssl http2;/; s/listen \[::\]:443 ssl;/listen [::]:443 ssl http2;/' "/etc/nginx/sites-available/$DOMAIN"
+  nginx -t
+  systemctl reload nginx
+  ok "TLS active — https://$DOMAIN"
+fi
+
+# --------------------------------------------------------- 7. routing check
+log "Verifying routing end-to-end"
+ROOT_CT=$(curl -sk -o /dev/null -w '%{content_type}' -H "Host: $DOMAIN" https://127.0.0.1/ 2>/dev/null \
+  || curl -s -o /dev/null -w '%{content_type}' -H "Host: $DOMAIN" http://127.0.0.1/)
+API_OK=$(curl -sk -H "Host: $DOMAIN" https://127.0.0.1/api/health 2>/dev/null \
+  || curl -s -H "Host: $DOMAIN" http://127.0.0.1/api/health)
+echo "  / content-type : $ROOT_CT (expect text/html)"
+echo "  /api/health    : $API_OK"
+case "$ROOT_CT" in
+  text/html*) ok "routing correct: / → web, /api → api" ;;
+  *) echo "⚠ / is NOT serving the web app — inspect: nginx -T | grep -A5 'server_name $DOMAIN'"; exit 1 ;;
+esac
 
 echo
 ok "DONE — WARCHEST live at https://$DOMAIN  (game: /play)"
