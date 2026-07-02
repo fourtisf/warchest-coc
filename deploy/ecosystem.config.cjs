@@ -33,7 +33,9 @@ module.exports = {
     {
       name: 'warchest-api',
       cwd: '/var/www/warchest/apps/api',
-      script: 'node_modules/.bin/tsx',
+      // NOT node_modules/.bin/tsx — pnpm bin shims are shell scripts and PM2
+      // would feed them to node. Point at tsx's real JS entry instead.
+      script: 'node_modules/tsx/dist/cli.mjs',
       args: 'src/index.ts',
       env: { NODE_ENV: 'production', ...ENV },
       max_memory_restart: '512M',
@@ -42,7 +44,7 @@ module.exports = {
     {
       name: 'warchest-worker',
       cwd: '/var/www/warchest/apps/api',
-      script: 'node_modules/.bin/tsx',
+      script: 'node_modules/tsx/dist/cli.mjs',
       args: 'src/worker.ts',
       env: { NODE_ENV: 'production', ...ENV },
       max_memory_restart: '256M',

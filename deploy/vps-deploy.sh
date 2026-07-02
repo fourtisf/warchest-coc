@@ -138,6 +138,8 @@ ok "build complete"
 
 # ------------------------------------------------------------------- 5. PM2
 log "Starting warchest-web / warchest-api / warchest-worker under PM2"
+# delete first: startOrReload keeps the old script path when the config changes
+pm2 delete warchest-web warchest-api warchest-worker >/dev/null 2>&1 || true
 pm2 startOrReload "$APP_DIR/deploy/ecosystem.config.cjs"
 pm2 save
 pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true
