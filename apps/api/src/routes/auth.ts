@@ -1,0 +1,93 @@
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { randomBytes } from 'node:crypto';
+import { prisma, type User } from '@warchest/db';
+import { z } from 'zod';
+import { COOKIE, setSessionCookie, signSession, userIdFromRequest, verifyWalletSignature } from '../auth';
+import { ENV } from '../env';
+import { materializeVillage } from '../materialize';
+import { checkQuests } from '../quests';
+import { serializeVillage } from '../serialize';
+import { store } from '../store';
+import { createUserWithVillage } from '../village-init';
+
+export async function requireUser(req: FastifyRequest): Promise<User> {
+  const uid = await userIdFromRequest(req);
+  if (!uid) throw Object.assign(new Error('unauthorized'), { statusCode: 401 });
+  const user = await prisma().user.findUnique({ where: { id: uid } });
+  if (!user) throw Object.assign(new Error('unauthorized'), { statusCode: 401 });
+  if (user.banned) throw Object.assign(new Error('account banned'), { statusCode: 403 });
+  return user;
+}
+
+export async function stateFor(user: User): Promise<object> {
+  const v = await materializeVillage(user.id);
+  await checkQuests(v, !!user.wallet);
+  return serializeVillage(v, user);
+}
+
+export function authRoutes(app: FastifyInstance): void {
+  // Guest session: returns the existing session's state or creates a fresh village.
+  app.post('/auth/guest', async (req, reply) => {
+    let user: User | null = null;
+    const uid = await userIdFromRequest(req);
+    if (uid) user = await prisma().user.findUnique({ where: { id: uid } });
+    if (!user || user.banned) {
+      const newId = await createUserWithVillage();
+      user = await prisma().user.findUniqueOrThrow({ where: { id: newId } });
+      setSessionCookie(reply, await signSession(user.id));
+    }
+    return stateFor(user);
+  });
+
+  app.get('/auth/nonce', async () => {
+    const nonce = randomBytes(16).toString('hex');
+    await store().setex(`wc:nonce:${nonce}`, 600, '1');
+    return { nonce };
+  });
+
+  // SIWS: link the wallet to the current guest, or log into the wallet's user.
+  app.post('/auth/wallet', async (req, reply: FastifyReply) => {
+    const body = z
+      .object({ wallet: z.string().min(32).max(48), signature: z.string().min(64).max(120), nonce: z.string().length(32) })
+      .parse(req.body);
+    const nonceKey = `wc:nonce:${body.nonce}`;
+    if (!(await store().get(nonceKey)))
+      return reply.code(400).send({ error: 'bad or expired nonce' });
+    await store().del(nonceKey);
+    if (!verifyWalletSignature(body.wallet, body.nonce, body.signature))
+      return reply.code(401).send({ error: 'signature verification failed' });
+
+    const db = prisma();
+    let user = await db.user.findUnique({ where: { wallet: body.wallet } });
+    if (!user) {
+      // attach wallet to the current session user (guest), or create fresh
+      const current = await userIdFromRequest(req);
+      if (current) {
+        const cu = await db.user.findUnique({ where: { id: current } });
+        if (cu && !cu.wallet && !cu.banned) {
+          user = await db.user.update({ where: { id: cu.id }, data: { wallet: body.wallet } });
+        }
+      }
+      if (!user) {
+        const id = await createUserWithVillage();
+        user = await db.user.update({ where: { id }, data: { wallet: body.wallet } });
+      }
+    }
+    if (user.banned) return reply.code(403).send({ error: 'account banned' });
+    if (ENV.ADMIN_WALLET && body.wallet === ENV.ADMIN_WALLET && !user.isAdmin)
+      user = await db.user.update({ where: { id: user.id }, data: { isAdmin: true } });
+    setSessionCookie(reply, await signSession(user.id));
+    return stateFor(user);
+  });
+
+  app.get('/me', async (req) => {
+    const user = await requireUser(req);
+    return stateFor(user);
+  });
+
+  // "Reset village": drop the session; the next /auth/guest starts fresh.
+  app.post('/auth/logout', async (_req, reply) => {
+    reply.clearCookie(COOKIE, { path: '/' });
+    return { ok: true };
+  });
+}

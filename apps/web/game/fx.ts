@@ -122,18 +122,14 @@ export const FX = {
         c.arc(q.x, q.y - 8, p.r! * (1.6 - a * 0.6), 0, 7);
         c.fill();
       } else if (p.k === 'ring') {
+        // NOTE: the prototype's radius formula (p.r+(1-a/p.L)*26) goes negative
+        // for a young ring — ctx.ellipse throws and kills the frame. Use the
+        // intended expanding-ring shape: r grows from p.r as the ring ages.
+        const rr = Math.max(0.1, p.r! + (1 - a) * 26);
         c.strokeStyle = `rgba(255,190,90,${a * 2 * 0.9})`;
         c.lineWidth = 3;
         c.beginPath();
-        c.ellipse(
-          q.x,
-          q.y - 4,
-          p.r! + (1 - (a / p.L) * 1) * 26,
-          (p.r! + (1 - a / p.L) * 26) * 0.5,
-          0,
-          0,
-          7,
-        );
+        c.ellipse(q.x, q.y - 4, rr, rr * 0.5, 0, 0, 7);
         c.stroke();
       } else if (p.k === 'sp') {
         c.fillStyle = `rgba(255,210,110,${a * 2})`;

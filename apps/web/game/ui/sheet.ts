@@ -4,16 +4,15 @@ import {
   SHOP_ORDER,
   TROOP,
   TROOP_ORDER,
-  finishNowCostDemo,
   fmt,
   tstr,
   type BuildingType,
   type ResourceKey,
   type TroopType,
 } from '@warchest/game-core';
+import { prodPerSec } from '../api';
 import { iconHTML } from '../art/icons';
 import { $ } from '../dom';
-import { SFX } from '../sfx';
 import {
   G,
   MAX_BUILDERS,
@@ -24,19 +23,19 @@ import {
   jobOf,
   keepLv,
   maxBarracksLv,
-  pay,
 } from '../state';
-import { toast } from './toasts';
-import { renderHUD } from './hud';
 import {
   canUpgrade,
-  checkQuests,
   clearObstacle,
   finishNow,
+  rushTraining,
   startMove,
   startPlace,
   startUpgrade,
   trainTroop,
+  uiBuildSeconds,
+  uiFinishCost,
+  uiTrainSeconds,
 } from '../systems';
 
 export type SheetKind = 'shop' | 'army' | 'info' | 'obst' | 'jobs';
@@ -137,14 +136,14 @@ export function renderSheet(): void {
         ${
           locked
             ? `<div class="meta" style="color:var(--bad)">Barracks L${T.unlock} required</div>`
-            : `<button class="btn mana" data-act="train" data-arg="${t}">${costHTML('m', T.cost)} · ${T.tt}s</button>`
+            : `<button class="btn mana" data-act="train" data-arg="${t}">${costHTML('m', T.cost)} · ${tstr(uiTrainSeconds(t))}</button>`
         }
       </div>`;
     }
     h += '</div>';
     if (G.trainQ.length) {
       const totRem = G.trainQ.reduce((a, q) => a + q.tLeft, 0);
-      const rush = finishNowCostDemo(totRem);
+      const rush = uiFinishCost(totRem);
       h += `<div class="row" style="margin-top:14px"><b style="font-size:13px">Training queue</b><span class="spacer"></span>
         <button class="btn war" data-act="rushq">Rush ◆${rush}</button></div><div class="qWrap">`;
       G.trainQ.forEach((q, i) => {
@@ -166,14 +165,14 @@ export function renderSheet(): void {
     let h = `<div class="meta" style="margin-bottom:8px;color:var(--dim);font-size:12.5px">${B.d}</div>`;
     h += `<div class="stat"><span>Hitpoints</span><b>${L.hp}</b></div>`;
     if (L.rate && B.cat === 'res')
-      h += `<div class="stat"><span>Production</span><b>${L.rate}/s</b></div><div class="stat"><span>Storage (on site)</span><b>${Math.floor(b.stored ?? 0)} / ${L.cap}</b></div>`;
+      h += `<div class="stat"><span>Production</span><b>${Math.round(prodPerSec(b.type, b.level) * 3600)}/h</b></div><div class="stat"><span>Storage (on site)</span><b>${Math.floor(b.stored ?? 0)} / ${L.cap}</b></div>`;
     if (L.add) h += `<div class="stat"><span>Capacity bonus</span><b>+${fmt(L.add)}</b></div>`;
     if (L.dmg)
       h += `<div class="stat"><span>Damage</span><b>${Math.round(L.dmg / L.rate!)}/s</b></div><div class="stat"><span>Range</span><b>${L.rng}${L.min ? ' (min ' + L.min + ')' : ''}</b></div>`;
     if (L.cap && b.type === 'camp') h += `<div class="stat"><span>Housing</span><b>${L.cap}</b></div>`;
     const job = jobOf(b.id);
     if (job) {
-      const fin = finishNowCostDemo(job.tLeft);
+      const fin = uiFinishCost(job.tLeft);
       h += `<div class="row" style="margin-top:12px"><div class="capBar"><i style="width:${(1 - job.tLeft / job.total) * 100}%;background:linear-gradient(90deg,#c98a12,var(--gold2))"></i></div>
         <b style="font-size:12px;min-width:44px;text-align:right">${tstr(job.tLeft)}</b></div>
       <div class="row" style="margin-top:10px"><button class="btn war" style="flex:1" data-act="fin" data-arg="${b.id}">⚡ Finish now ◆${fin}</button></div>`;
@@ -183,7 +182,7 @@ export function renderSheet(): void {
       h += `<div class="row" style="margin-top:12px;gap:8px">`;
       if (nxt)
         h += `<button class="btn ${B.res === 'm' ? 'mana' : ''}" style="flex:1.5" data-act="upg" data-arg="${b.id}" ${up.ok ? '' : 'disabled'}>
-        ⬆ Upgrade ${costHTML(B.res, nxt.c)} · ${tstr(nxt.t)}</button>`;
+        ⬆ Upgrade ${costHTML(B.res, nxt.c)} · ${tstr(uiBuildSeconds(b.type, b.level + 1))}</button>`;
       else h += `<button class="btn" disabled style="flex:1.5">★ Max level</button>`;
       h += `<button class="btn ghost" data-act="move" data-arg="${b.id}">✥ Move</button></div>`;
       if (nxt && !up.ok) h += `<div class="meta" style="margin-top:8px;color:var(--bad)">${up.why}</div>`;
@@ -211,7 +210,7 @@ export function renderSheet(): void {
       const b = G.buildings.find((x) => x.id === j.bid);
       if (!b) continue;
       const B = BUILD[b.type];
-      const fin = finishNowCostDemo(j.tLeft);
+      const fin = uiFinishCost(j.tLeft);
       h += `<div class="row" style="padding:9px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
         <span style="font-size:18px">${B.emoji}</span><div style="flex:1"><b style="font-size:13px">${B.n} ${j.kind === 'up' ? '→ Lv ' + (b.level + 1) : '(building)'}</b>
         <div class="capBar" style="margin-top:5px"><i style="width:${(1 - j.tLeft / j.total) * 100}%;background:linear-gradient(90deg,#c98a12,var(--gold2))"></i></div></div>
@@ -244,23 +243,7 @@ export function initSheet(): void {
       const ob = G.obstacles.find((o) => o.id === Number(arg));
       if (ob) clearObstacle(ob);
     } else if (act === 'rushq') {
-      const tot = G.trainQ.reduce((a, q) => a + q.tLeft, 0);
-      const c = finishNowCostDemo(tot);
-      if (pay(c, 'w')) {
-        for (const q of G.trainQ) {
-          G.army[q.type]++;
-          G.stat.trained++;
-          G.stat.tTypes[q.type] = (G.stat.tTypes[q.type] ?? 0) + 1;
-        }
-        G.trainQ = [];
-        SFX.play('done');
-        checkQuests();
-        renderHUD();
-        refreshSheet();
-      } else {
-        toast('Not enough $WAR', 'warn');
-        SFX.play('err');
-      }
+      rushTraining();
     } else if (act === 'openArmy') openSheet('army');
   });
 }

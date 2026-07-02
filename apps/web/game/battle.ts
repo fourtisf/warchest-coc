@@ -1,70 +1,67 @@
 /**
- * Client battle controller: matchmaking (scouting), driving the shared
- * game-core BattleSim, mapping sim events to FX/SFX, and the result flow.
- * The client renders sim state directly — the same sim code re-validates the
- * recorded deploy log server-side in P2.
+ * Client battle controller (P2): the server scouts a target (real village
+ * snapshot or procedural fallback) and validates the recorded deploy log by
+ * re-simulating it with the same game-core code. The local sim is pure
+ * prediction/rendering; rewards shown come from the SERVER outcome.
  */
 import {
   BattleSim,
   MAP,
-  NEXT_COST,
   TH,
   TROOP_ORDER,
   TW,
+  baseFromList,
   fmt,
-  genEnemy,
   iso,
-  nextSeed,
   type EnemyBase,
-  type TroopType,
 } from '@warchest/game-core';
+import { api, hydrate, withVillage, type BattleOutcomeDto } from './api';
 import { CAM, fitCam } from './camera';
 import { $ } from './dom';
 import { FX } from './fx';
 import { SFX } from './sfx';
-import { G, addRes, keepLv, pay, rebuildOcc } from './state';
-import { checkQuests } from './systems';
+import { G, rebuildOcc } from './state';
+import { updateQuestBadge } from './systems';
 import { groundOrThrow } from './world';
 import { buildTroopBar, renderHUD, updBattleHUD } from './ui/hud';
 import { closeSheet } from './ui/sheet';
-import { closeOv, openOv } from './ui/modals';
+import { closeOv, openOv, refreshMailBadge } from './ui/modals';
 import { toast } from './ui/toasts';
 
-let SCOUT: EnemyBase | null = null;
-let mmTimer: ReturnType<typeof setTimeout> | null = null;
+interface Scout {
+  battleId: string;
+  base: EnemyBase;
+}
 
-export function newScout(): void {
-  G.seed = nextSeed(G.seed);
-  SCOUT = genEnemy(G.seed, keepLv());
-  $('mmTH').textContent = 'Level ' + SCOUT.th;
-  $('mmG').textContent = fmt(SCOUT.list.reduce((a, b) => a + b.lootG, 0));
-  $('mmM').textContent = fmt(SCOUT.list.reduce((a, b) => a + b.lootM, 0));
+let SCOUT: Scout | null = null;
+
+async function fetchScout(rerollFrom?: string): Promise<void> {
+  $('mmSpin').style.display = 'block';
+  $('mmScout').style.display = 'none';
+  try {
+    const r = await api.scout(rerollFrom);
+    hydrate(r.village);
+    renderHUD();
+    SCOUT = { battleId: r.battleId, base: baseFromList(r.list, r.seed, r.th, r.lootG + r.lootM) };
+    $('mmTH').textContent = 'Level ' + r.th;
+    $('mmG').textContent = fmt(r.lootG);
+    $('mmM').textContent = fmt(r.lootM);
+    $('mmSpin').style.display = 'none';
+    $('mmScout').style.display = 'block';
+  } catch (e) {
+    closeOv('mm');
+    toast(e instanceof Error ? e.message : 'Matchmaking failed', 'warn');
+  }
 }
 
 export function openMatchmaking(): void {
   openOv('mm');
-  $('mmSpin').style.display = 'block';
-  $('mmScout').style.display = 'none';
-  mmTimer = setTimeout(() => {
-    newScout();
-    $('mmSpin').style.display = 'none';
-    $('mmScout').style.display = 'block';
-  }, 900);
+  void fetchScout();
 }
 
 export function rerollScout(): void {
-  if (!pay(NEXT_COST, 'g')) {
-    toast('Not enough Gold', 'warn');
-    return;
-  }
-  renderHUD();
-  $('mmSpin').style.display = 'block';
-  $('mmScout').style.display = 'none';
-  mmTimer = setTimeout(() => {
-    newScout();
-    $('mmSpin').style.display = 'none';
-    $('mmScout').style.display = 'block';
-  }, 500);
+  if (!SCOUT) return;
+  void fetchScout(SCOUT.battleId);
 }
 
 export function startBattle(): void {
@@ -72,7 +69,7 @@ export function startBattle(): void {
   closeOv('mm');
   closeSheet();
   G.sel = null;
-  const sim = new BattleSim(SCOUT, { ...G.army });
+  const sim = new BattleSim(SCOUT.base, { ...G.army });
   // red no-deploy overlay, baked once over the ground canvas space
   const ground = groundOrThrow();
   const red = document.createElement('canvas');
@@ -94,7 +91,7 @@ export function startBattle(): void {
         rc.fill();
       }
   const firstAvail = TROOP_ORDER.find((t) => G.army[t] > 0) ?? 'raider';
-  G.battle = { sim, base: SCOUT, sel: firstAvail, red };
+  G.battle = { sim, base: SCOUT.base, sel: firstAvail, red, battleId: SCOUT.battleId };
   G.mode = 'battle_deploy';
   $('hudTop').style.display = 'none';
   $('dock').style.display = 'none';
@@ -168,19 +165,20 @@ function drainEvents(sim: BattleSim): void {
         FX.dust(e.x, e.y);
         break;
       case 'ended':
-        showResult(sim);
+        void submitResult();
         break;
     }
   }
   sim.events.length = 0;
 }
 
-/** "End Battle" button: abort silently before first deploy, otherwise finish + show results. */
+/** "End Battle" button: abort silently before first deploy, otherwise finish + submit. */
 export function endBattlePressed(): void {
   const B = G.battle;
   if (!B) return;
   if (!B.sim.started) {
     G.battle = null;
+    SCOUT = null;
     exitBattleUI();
     return;
   }
@@ -188,20 +186,24 @@ export function endBattlePressed(): void {
   drainEvents(B.sim);
 }
 
-function showResult(sim: BattleSim): void {
-  const o = sim.outcome();
-  G.trophies = Math.max(0, G.trophies + o.trophyDelta);
-  addRes('g', o.lootG, true);
-  addRes('m', o.lootM, true);
-  if (o.warEarned) addRes('w', o.warEarned, true);
-  G.army = { ...sim.army };
-  G.stat.raids++;
-  if (o.win) G.stat.wins++;
-  G.stat.stars += o.stars;
-  if (o.stars === 3) G.stat.threeStar++;
-  G.stat.lootG += o.lootG;
-  G.stat.lootM += o.lootM;
-  // result modal
+/** POST the deploy log; the server re-simulates and returns the authoritative outcome. */
+async function submitResult(): Promise<void> {
+  const B = G.battle;
+  if (!B) return;
+  const local = B.sim.outcome();
+  let outcome: BattleOutcomeDto = local;
+  try {
+    const r = await api.resolve(B.battleId, B.sim.log);
+    outcome = r.outcome;
+    hydrate(r.village);
+  } catch (e) {
+    toast(e instanceof Error ? e.message : 'Could not submit battle — rewards not applied', 'warn');
+  }
+  SCOUT = null;
+  showResult(outcome);
+}
+
+function showResult(o: BattleOutcomeDto): void {
   const stars = $('resStars').children;
   for (let i = 0; i < 3; i++) {
     stars[i]!.classList.remove('on');
@@ -219,7 +221,7 @@ function showResult(sim: BattleSim): void {
   $('resT').textContent = (o.trophyDelta >= 0 ? '+' : '') + o.trophyDelta;
   openOv('result');
   SFX.play(o.win ? 'win' : 'lose');
-  checkQuests();
+  updateQuestBadge();
   renderHUD();
 }
 
@@ -241,10 +243,13 @@ export function exitBattleUI(): void {
   fitCam();
   rebuildOcc();
   renderHUD();
+  void refreshMailBadge();
 }
 
 export function disposeBattle(): void {
-  if (mmTimer) clearTimeout(mmTimer);
-  mmTimer = null;
   SCOUT = null;
 }
+
+// keep the /me poller honest while a raid is being played
+export const inBattle = (): boolean => !!G.battle;
+export { withVillage };

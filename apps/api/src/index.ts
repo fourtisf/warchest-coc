@@ -1,24 +1,43 @@
-/**
- * WARCHEST API — P0 stub.
- * P1 brings SIWS auth, Prisma models and server-authoritative village actions;
- * P2 adds deploy-log battle validation via @warchest/game-core simulateBattle().
- */
+/** WARCHEST API — Fastify server, mounted under /api (nginx proxies warchest.fun/api → :8787). */
+import fastifyCookie from '@fastify/cookie';
 import Fastify from 'fastify';
-import { QUEST_POOL, simulateBattle } from '@warchest/game-core';
+import { ZodError } from 'zod';
+import { ENV } from './env';
+import { adminRoutes } from './routes/admin';
+import { authRoutes } from './routes/auth';
+import { battleRoutes } from './routes/battle';
+import { claimRoutes } from './routes/claim';
+import { metaRoutes } from './routes/meta';
+import { villageRoutes } from './routes/village';
 
 const app = Fastify({ logger: true });
 
-app.get('/health', async () => ({
-  ok: true,
-  service: 'warchest-api',
-  questPool: QUEST_POOL,
-  // proves the shared sim is importable server-side from day one
-  simShared: typeof simulateBattle === 'function',
-}));
+await app.register(fastifyCookie);
 
-const port = Number(process.env.PORT ?? 8787);
+app.setErrorHandler((err, _req, reply) => {
+  if (err instanceof ZodError)
+    return reply.code(400).send({ error: 'invalid request', issues: err.issues });
+  const status = (err as { statusCode?: number }).statusCode ?? 500;
+  if (status >= 500) app.log.error(err);
+  return reply.code(status).send({ error: err.message });
+});
+
+await app.register(
+  async (api) => {
+    api.get('/health', async () => ({ ok: true, service: 'warchest-api', now: Date.now() }));
+    authRoutes(api);
+    villageRoutes(api);
+    battleRoutes(api);
+    claimRoutes(api);
+    metaRoutes(api);
+    adminRoutes(api);
+  },
+  { prefix: '/api' },
+);
+
 app
-  .listen({ port, host: '0.0.0.0' })
+  .listen({ port: ENV.PORT, host: '127.0.0.1' })
+  .then(() => app.log.info(`warchest-api on :${ENV.PORT}`))
   .catch((err) => {
     app.log.error(err);
     process.exit(1);

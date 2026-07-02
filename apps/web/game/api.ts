@@ -1,0 +1,238 @@
+/**
+ * Server API client + state hydration. Since P1 the server is authoritative:
+ * every economy action is a POST; responses carry the full village which is
+ * hydrated into the local G (kept only as a render cache / prediction layer).
+ */
+import {
+  QUESTS,
+  REAL_BUILD_TIMES,
+  REAL_TRAIN_TIMES,
+  BUILD,
+  type ArmyCounts,
+  type BuildingType,
+  type SimBuilding,
+  type TroopType,
+} from '@warchest/game-core';
+import { G, rebuildOcc, type VillageBuilding } from './state';
+import { toast } from './ui/toasts';
+
+const BASE = '/api';
+
+export interface ServerConfig {
+  domain: string;
+  timeScale: number;
+  prodAccel: number;
+  claimMin: number;
+  claimFeeBps: number;
+  claimDailyCap: number;
+}
+
+export interface ServerVillage {
+  serverNow: number;
+  config: ServerConfig;
+  user: { id: string; wallet: string | null; banned: boolean; isAdmin: boolean };
+  res: { g: number; m: number; w: number };
+  trophies: number;
+  buildersTotal: number;
+  shieldUntil: number | null;
+  buildings: Array<{
+    id: number; type: BuildingType; level: number; gx: number; gy: number;
+    stored: number; busyUntil: number | null; jobKind: 'new' | 'up' | null; jobTotalS: number | null;
+  }>;
+  obstacles: Array<{ id: number; kind: 'tree' | 'rock'; gx: number; gy: number }>;
+  army: ArmyCounts;
+  trainQ: Array<{ id: number; type: TroopType; finishesAt: number | null; totalS: number }>;
+  questDone: Record<string, boolean>;
+  stat: typeof G.stat;
+}
+
+export interface ScoutResponse {
+  battleId: string;
+  seed: number;
+  th: number;
+  list: SimBuilding[];
+  lootG: number;
+  lootM: number;
+  expiresAt: number;
+  village: ServerVillage;
+}
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method,
+    credentials: 'same-origin',
+    headers: body !== undefined ? { 'content-type': 'application/json' } : undefined,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  const data = (await res.json().catch(() => ({}))) as { error?: string };
+  if (!res.ok) throw new ApiError(res.status, data.error ?? `request failed (${res.status})`);
+  return data as T;
+}
+
+/** serverNow - Date.now(): add to local clocks when computing countdowns. */
+export let serverOffset = 0;
+export let serverConfig: ServerConfig = {
+  domain: 'warchest.fun', timeScale: 1, prodAccel: 180, claimMin: 100, claimFeeBps: 500, claimDailyCap: 500,
+};
+
+export const nowMs = (): number => Date.now() + serverOffset;
+
+/** Real-world timer helpers (mirror apps/api rules.ts, using the server's knobs). */
+export const realBuildSeconds = (type: BuildingType, level: number): number => {
+  const t = REAL_BUILD_TIMES[type];
+  return (t[Math.min(level, t.length) - 1] ?? 0) / serverConfig.timeScale;
+};
+export const realTrainSeconds = (t: TroopType): number =>
+  REAL_TRAIN_TIMES[t] / serverConfig.timeScale;
+export const prodPerSec = (type: BuildingType, level: number): number =>
+  ((BUILD[type].lv[level - 1]?.rate ?? 0) / serverConfig.prodAccel) * serverConfig.timeScale;
+
+let lastQuestDone: Record<string, boolean> = {};
+
+/** Map a server village payload onto the local G render state. */
+export function hydrate(payload: ServerVillage): void {
+  serverOffset = payload.serverNow - Date.now();
+  serverConfig = payload.config;
+  G.res = { ...payload.res };
+  G.trophies = payload.trophies;
+  G.buildersTotal = payload.buildersTotal;
+  G.wallet = payload.user.wallet
+    ? { addr: payload.user.wallet, short: payload.user.wallet.slice(0, 4) + '…' + payload.user.wallet.slice(-4) }
+    : null;
+  G.buildings = payload.buildings.map((b): VillageBuilding => ({
+    id: b.id,
+    type: b.type,
+    gx: b.gx,
+    gy: b.gy,
+    level: b.level,
+    hp: BUILD[b.type].lv[b.level - 1]!.hp,
+    stored: b.stored,
+    busy: b.busyUntil !== null && b.busyUntil > payload.serverNow,
+    busyUntil: b.busyUntil ?? undefined,
+    jobKind: b.jobKind ?? undefined,
+    jobTotalS: b.jobTotalS ?? undefined,
+  }));
+  G.obstacles = payload.obstacles.map((o) => ({ id: o.id, kind: o.kind, gx: o.gx, gy: o.gy }));
+  G.army = { ...payload.army };
+  G.trainQ = payload.trainQ.map((j) => ({
+    sid: j.id,
+    type: j.type,
+    finishesAt: j.finishesAt ?? undefined,
+    total: j.totalS,
+    tLeft: j.finishesAt ? Math.max(0, (j.finishesAt - payload.serverNow) / 1000) : j.totalS,
+  }));
+  G.stat = { ...G.stat, ...payload.stat, tTypes: { ...payload.stat.tTypes } };
+  // toast newly completed War Orders (the server credits them)
+  for (const q of QUESTS) {
+    if (payload.questDone[q.id] && !lastQuestDone[q.id] && Object.keys(lastQuestDone).length) {
+      toast(`📜 War Order complete: +◆${q.reward}`, 'ok');
+    }
+  }
+  lastQuestDone = { ...payload.questDone };
+  G.questDone = { ...payload.questDone };
+  rebuildOcc();
+}
+
+/* ------------------------------ endpoints ------------------------------ */
+export const api = {
+  guest: () => call<ServerVillage>('POST', '/auth/guest'),
+  me: () => call<ServerVillage>('GET', '/me'),
+  logout: () => call<{ ok: true }>('POST', '/auth/logout'),
+  nonce: () => call<{ nonce: string }>('GET', '/auth/nonce'),
+  walletLogin: (wallet: string, signature: string, nonce: string) =>
+    call<ServerVillage>('POST', '/auth/wallet', { wallet, signature, nonce }),
+
+  collect: (buildingId: number) => call<ServerVillage>('POST', '/village/collect', { buildingId }),
+  place: (type: BuildingType, gx: number, gy: number) =>
+    call<ServerVillage>('POST', '/village/place', { type, gx, gy }),
+  move: (buildingId: number, gx: number, gy: number) =>
+    call<ServerVillage>('POST', '/village/move', { buildingId, gx, gy }),
+  upgrade: (buildingId: number) => call<ServerVillage>('POST', '/village/upgrade', { buildingId }),
+  finishNow: (buildingId: number) =>
+    call<ServerVillage>('POST', '/village/finish-now', { buildingId }),
+  train: (troop: TroopType) => call<ServerVillage>('POST', '/village/train', { troop }),
+  rushTraining: () => call<ServerVillage>('POST', '/village/rush-training', {}),
+  clearObstacle: (obstacleId: number) =>
+    call<ServerVillage>('POST', '/village/clear-obstacle', { obstacleId }),
+
+  scout: (rerollFrom?: string) =>
+    call<ScoutResponse>('POST', '/battle/scout', rerollFrom ? { rerollFrom } : {}),
+  resolve: (battleId: string, log: unknown) =>
+    call<{ outcome: BattleOutcomeDto; village: ServerVillage }>(
+      'POST',
+      `/battle/${battleId}/resolve`,
+      { log },
+    ),
+  defenseLog: () =>
+    call<{ unseen: number; entries: DefenseEntry[] }>('GET', '/battle/defense-log'),
+
+  claim: (amount: number) =>
+    call<{ claim: { id: string; amount: number; fee: number; status: string }; village: ServerVillage }>(
+      'POST',
+      '/claim',
+      { amount },
+    ),
+  claims: () =>
+    call<{ claims: Array<{ id: string; amount: number; fee: number; status: string; txSig: string | null; at: number }> }>(
+      'GET',
+      '/claims',
+    ),
+  leaderboard: () =>
+    call<{ top: LbRow[]; me: LbRow | null }>('GET', '/leaderboard'),
+};
+
+export interface BattleOutcomeDto {
+  stars: number;
+  pct: number;
+  lootG: number;
+  lootM: number;
+  warEarned: number;
+  trophyDelta: number;
+  win: boolean;
+  started: boolean;
+}
+
+export interface DefenseEntry {
+  id: string;
+  at: number;
+  stars: number;
+  pct: number;
+  lootG: number;
+  lootM: number;
+  attacker: string;
+}
+
+export interface LbRow {
+  rank: number;
+  name: string;
+  trophies: number;
+  me?: boolean;
+}
+
+/** Run an API action; hydrate on success; toast the server's error on failure. */
+export async function withVillage(
+  p: Promise<ServerVillage>,
+  onError?: (e: ApiError) => void,
+): Promise<boolean> {
+  try {
+    hydrate(await p);
+    return true;
+  } catch (e) {
+    if (e instanceof ApiError) {
+      toast(e.message, 'warn');
+      onError?.(e);
+    } else {
+      toast('Network error — retrying soon', 'warn');
+    }
+    return false;
+  }
+}

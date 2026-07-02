@@ -189,6 +189,8 @@ export interface BattleOutcome {
   keepDestroyed: boolean;
   /** simulation ticks elapsed */
   ticks: number;
+  /** troops left after the battle (deploys consumed) */
+  armyLeft: ArmyCounts;
 }
 
 /** Events emitted by the battle sim for the client to render FX / SFX. */

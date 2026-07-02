@@ -379,6 +379,7 @@ export class BattleSim {
       started: this.started,
       keepDestroyed: this.thDown,
       ticks: this.tick,
+      armyLeft: { ...this.army },
     };
   }
 }

@@ -1,25 +1,29 @@
-/** Village systems — production, jobs, training, placement, upgrades, quests. Ported verbatim. */
+/**
+ * Village systems — since P1 the SERVER is authoritative. Local ticks only
+ * animate countdowns/production for display; every mutation is an API call
+ * whose response re-hydrates local state.
+ */
 import {
   BUILD,
   QUESTS,
   TROOP,
   MAP,
+  OBSTACLE_COST,
   canPlace as canPlaceOn,
-  finishNowCostDemo,
+  finishNowCostReal,
+  fmt,
   type BuildingType,
   type QuestView,
   type TroopType,
 } from '@warchest/game-core';
-import { fmt } from '@warchest/game-core';
+import { api, nowMs, prodPerSec, realBuildSeconds, realTrainSeconds, withVillage } from './api';
 import { $ } from './dom';
 import { FX } from './fx';
 import { SFX } from './sfx';
 import {
-  DEMO_SPEED,
   G,
   MAX_BUILDERS,
   OCC,
-  addRes,
   armyCap,
   capOf,
   countOf,
@@ -28,18 +32,19 @@ import {
   jobOf,
   keepLv,
   maxBarracksLv,
-  mkB,
-  pay,
-  rebuildOcc,
   type Obstacle,
   type VillageBuilding,
 } from './state';
-import { view } from './camera';
 import { renderHUD } from './ui/hud';
 import { closeSheet, refreshSheet } from './ui/sheet';
 import { toast } from './ui/toasts';
 
-/** Placement check against the live village occupancy grid (buildings + obstacles). */
+/** set when a local countdown crosses zero → the main loop pulls /me once */
+export const sync = { dirty: false, inflight: false };
+export function markDirty(): void {
+  sync.dirty = true;
+}
+
 export function canPlaceVillage(type: BuildingType, gx: number, gy: number, ignoreId?: number): boolean {
   return canPlaceOn(OCC, type, gx, gy, ignoreId);
 }
@@ -54,76 +59,66 @@ export function questView(): QuestView {
   };
 }
 
-/* ---------------- production / collection ---------------- */
+/* -------------------- display ticks (server owns the truth) -------------------- */
 export function tickProduction(dt: number): void {
   for (const b of G.buildings) {
     if (b.busy) continue;
     if (b.type === 'mine' || b.type === 'well') {
       const L = BUILD[b.type].lv[b.level - 1]!;
-      b.stored = Math.min(Math.max((b.stored ?? 0) + L.rate! * dt * DEMO_SPEED, 0), L.cap!);
+      b.stored = Math.min((b.stored ?? 0) + prodPerSec(b.type, b.level) * dt, L.cap!);
     }
   }
 }
 
-export function collect(b: VillageBuilding): boolean {
-  const amt = Math.floor(b.stored ?? 0);
-  if (amt < 5) return false;
-  const r = b.type === 'mine' ? 'g' : 'm';
-  const got = addRes(r, amt, true);
-  b.stored = (b.stored ?? 0) - amt;
-  if (r === 'g') G.stat.gCollected += got;
-  else G.stat.mCollected += got;
-  const cx = b.gx + 1.5, cy = b.gy + 1.5;
-  FX.float(cx, cy, (r === 'g' ? '🪙 +' : '🔮 +') + fmt(got), r === 'g' ? '#ffd977' : '#c9a6ff');
-  if (r === 'g') {
-    FX.coins(cx, cy, 6);
-    SFX.play('coin');
-  } else SFX.play('mana');
-  checkQuests();
-  renderHUD();
-  return true;
-}
-
-/* ---------------- build / upgrade jobs ---------------- */
-export function tickJobs(dt: number): void {
-  for (const j of [...G.jobs]) {
-    j.tLeft -= dt * DEMO_SPEED;
-    if (j.tLeft <= 0) {
-      const b = G.buildings.find((x) => x.id === j.bid);
-      G.jobs = G.jobs.filter((x) => x !== j);
-      if (b) {
-        if (j.kind === 'up') {
-          b.level++;
-          b.hp = BUILD[b.type].lv[b.level - 1]!.hp;
-        }
-        b.busy = false;
-        FX.dust(b.gx + BUILD[b.type].s / 2, b.gy + BUILD[b.type].s / 2);
-        SFX.play('done');
-        toast(`${BUILD[b.type].emoji} ${BUILD[b.type].n} → Level ${b.level}`, 'ok');
+/** Rebuild the jobs view from busyUntil stamps; request a sync when one completes. */
+export function tickJobs(): void {
+  const now = nowMs();
+  const jobs: typeof G.jobs = [];
+  let completed = false;
+  for (const b of G.buildings) {
+    if (b.busy && b.busyUntil !== undefined) {
+      const tLeft = (b.busyUntil - now) / 1000;
+      if (tLeft <= 0) {
+        completed = true;
+        continue;
       }
-      renderHUD();
-      refreshSheet();
-      checkQuests();
+      jobs.push({ bid: b.id, tLeft, total: b.jobTotalS ?? Math.max(1, tLeft), kind: b.jobKind ?? 'new' });
     }
   }
+  G.jobs = jobs;
+  if (completed) markDirty();
 }
 
-/* ---------------- training ---------------- */
 export function tickTraining(dt: number): void {
   if (!G.trainQ.length) return;
-  const spd = Math.max(1, G.buildings.filter((b) => b.type === 'barracks' && !b.busy).length);
   const q = G.trainQ[0]!;
-  q.tLeft -= dt * spd * DEMO_SPEED;
-  if (q.tLeft <= 0) {
-    G.trainQ.shift();
-    G.army[q.type]++;
-    G.stat.trained++;
-    G.stat.tTypes[q.type] = (G.stat.tTypes[q.type] ?? 0) + 1;
-    SFX.play('tap');
-    checkQuests();
-    refreshSheet();
-    renderHUD();
+  if (q.finishesAt !== undefined) {
+    q.tLeft = (q.finishesAt - nowMs()) / 1000;
+    if (q.tLeft <= 0) markDirty();
+  } else {
+    // head not yet scheduled server-side; keep the visual bar moving
+    q.tLeft = Math.max(0.5, q.tLeft - dt);
   }
+}
+
+/* ------------------------------- actions ------------------------------- */
+export function collect(b: VillageBuilding): void {
+  void (async () => {
+    const before = { g: G.res.g, m: G.res.m };
+    if (!(await withVillage(api.collect(b.id)))) return;
+    const r = b.type === 'mine' ? 'g' : 'm';
+    const got = G.res[r] - before[r];
+    if (got <= 0) return;
+    const cx = b.gx + 1.5, cy = b.gy + 1.5;
+    FX.float(cx, cy, (r === 'g' ? '🪙 +' : '🔮 +') + fmt(got), r === 'g' ? '#ffd977' : '#c9a6ff');
+    if (r === 'g') {
+      FX.coins(cx, cy, 6);
+      SFX.play('coin');
+    } else SFX.play('mana');
+    renderHUD();
+    refreshSheet();
+    updateQuestBadge();
+  })();
 }
 
 export function trainTroop(t: TroopType): void {
@@ -138,18 +133,21 @@ export function trainTroop(t: TroopType): void {
     SFX.play('err');
     return;
   }
-  if (!pay(T.cost, 'm')) {
+  if (G.res.m < T.cost) {
     toast('Not enough Mana', 'warn');
     SFX.play('err');
     return;
   }
-  G.trainQ.push({ type: t, tLeft: T.tt, total: T.tt });
-  SFX.play('tap');
-  renderHUD();
-  refreshSheet();
+  void (async () => {
+    if (await withVillage(api.train(t))) {
+      SFX.play('tap');
+      renderHUD();
+      refreshSheet();
+    } else SFX.play('err');
+  })();
 }
 
-/* ---------------- placement / moving ---------------- */
+/* ---------------- placement / moving (ghost stays local) ---------------- */
 export function startPlace(type: BuildingType): void {
   const B = BUILD[type];
   closeSheet();
@@ -189,7 +187,12 @@ export function placeCancel(): void {
   G.place = null;
   G.mode = 'village';
   $('placeUI').style.display = 'none';
-  rebuildOcc();
+}
+
+function endPlacing(): void {
+  G.place = null;
+  G.mode = 'village';
+  $('placeUI').style.display = 'none';
 }
 
 export function placeConfirm(): void {
@@ -201,53 +204,41 @@ export function placeConfirm(): void {
     SFX.play('err');
     return;
   }
-  if (P.moving) {
-    const b = G.buildings.find((x) => x.id === P.moving);
-    if (b) {
-      b.gx = P.gx;
-      b.gy = P.gy;
-      G.place = null;
-      G.mode = 'village';
-      $('placeUI').style.display = 'none';
-      rebuildOcc();
-      SFX.play('build');
-      FX.dust(b.gx + B.s / 2, b.gy + B.s / 2);
+  const { type, gx, gy, moving } = P;
+  void (async () => {
+    if (moving) {
+      if (await withVillage(api.move(moving, gx, gy))) {
+        endPlacing();
+        SFX.play('build');
+        FX.dust(gx + B.s / 2, gy + B.s / 2);
+      }
+      return;
     }
-    return;
-  }
-  const lv = B.lv[0]!;
-  if (!pay(lv.c, B.res)) {
-    toast(B.res === 'w' ? 'Not enough $WAR' : 'Not enough resources', 'warn');
-    SFX.play('err');
-    return;
-  }
-  const b = mkB(P.type, P.gx, P.gy, 1);
-  G.buildings.push(b);
-  G.stat.built++;
-  if (P.type === 'hut') G.buildersTotal = Math.min(MAX_BUILDERS, G.buildersTotal + 1);
-  if (lv.t > 0) {
-    b.busy = true;
-    G.jobs.push({ bid: b.id, tLeft: lv.t, total: lv.t, kind: 'new' });
-  }
-  rebuildOcc();
-  SFX.play('build');
-  FX.dust(P.gx + B.s / 2, P.gy + B.s / 2);
-  G.place = null;
-  G.mode = 'village';
-  $('placeUI').style.display = 'none';
-  renderHUD();
-  checkQuests();
-  // wall chaining like COC
-  if (P.type === 'wall' && G.res[B.res] >= lv.c && countOf('wall') < BUILD.wall.max[keepLv() - 1]!) {
-    startPlace('wall');
-  }
+    if (G.res[B.res] < B.lv[0]!.c) {
+      toast(B.res === 'w' ? 'Not enough $WAR' : 'Not enough resources', 'warn');
+      SFX.play('err');
+      return;
+    }
+    if (!(await withVillage(api.place(type, gx, gy)))) {
+      SFX.play('err');
+      return;
+    }
+    endPlacing();
+    SFX.play('build');
+    FX.dust(gx + B.s / 2, gy + B.s / 2);
+    renderHUD();
+    updateQuestBadge();
+    // wall chaining like COC
+    if (type === 'wall' && G.res[B.res] >= B.lv[0]!.c && countOf('wall') < BUILD.wall.max[keepLv() - 1]!) {
+      startPlace('wall');
+    }
+  })();
 }
 
-/* ---------------- upgrades ---------------- */
+/* ------------------------------- upgrades ------------------------------- */
 export interface UpgradeCheck {
   ok: boolean;
   why?: string;
-  lv?: (typeof BUILD)['keep']['lv'][number];
 }
 
 export function canUpgrade(b: VillageBuilding): UpgradeCheck {
@@ -259,84 +250,91 @@ export function canUpgrade(b: VillageBuilding): UpgradeCheck {
   const lv = B.lv[b.level]!;
   if (G.res[B.res] < lv.c)
     return { ok: false, why: 'Not enough ' + (B.res === 'g' ? 'Gold' : B.res === 'm' ? 'Mana' : '$WAR') };
-  if (freeBuilders() <= 0) return { ok: false, why: 'All builders are busy' };
-  return { ok: true, lv };
+  if (realBuildSeconds(b.type, b.level + 1) > 0 && freeBuilders() <= 0)
+    return { ok: false, why: 'All builders are busy' };
+  return { ok: true };
 }
 
 export function startUpgrade(b: VillageBuilding): void {
   const chk = canUpgrade(b);
-  if (!chk.ok || !chk.lv) {
+  if (!chk.ok) {
     toast(chk.why ?? '', 'warn');
     SFX.play('err');
     return;
   }
-  const B = BUILD[b.type];
-  pay(chk.lv.c, B.res);
-  if (chk.lv.t <= 0) {
-    b.level++;
-    b.hp = BUILD[b.type].lv[b.level - 1]!.hp;
-    SFX.play('done');
-    toast(`${B.emoji} ${B.n} → Level ${b.level}`, 'ok');
-    checkQuests();
-  } else {
-    b.busy = true;
-    G.jobs.push({ bid: b.id, tLeft: chk.lv.t, total: chk.lv.t, kind: 'up' });
-    SFX.play('build');
-  }
-  renderHUD();
-  refreshSheet();
+  void (async () => {
+    if (await withVillage(api.upgrade(b.id))) {
+      const B = BUILD[b.type];
+      const nb = G.buildings.find((x) => x.id === b.id);
+      if (nb && !nb.busy) {
+        SFX.play('done');
+        toast(`${B.emoji} ${B.n} → Level ${nb.level}`, 'ok');
+      } else SFX.play('build');
+      renderHUD();
+      refreshSheet();
+      updateQuestBadge();
+    } else SFX.play('err');
+  })();
 }
 
 export function finishNow(bid: number): void {
-  const j = jobOf(bid);
-  if (!j) return;
-  const cost = finishNowCostDemo(j.tLeft);
-  if (!pay(cost, 'w')) {
-    toast('Not enough $WAR', 'warn');
-    SFX.play('err');
-    return;
-  }
-  j.tLeft = 0;
-  renderHUD();
+  void (async () => {
+    if (await withVillage(api.finishNow(bid))) {
+      SFX.play('done');
+      renderHUD();
+      refreshSheet();
+      updateQuestBadge();
+    } else SFX.play('err');
+  })();
 }
 
-/* ---------------- obstacles ---------------- */
+export function rushTraining(): void {
+  void (async () => {
+    if (await withVillage(api.rushTraining())) {
+      SFX.play('done');
+      renderHUD();
+      refreshSheet();
+      updateQuestBadge();
+    } else SFX.play('err');
+  })();
+}
+
+/* ------------------------------- obstacles ------------------------------ */
 export function clearObstacle(ob: Obstacle): void {
-  const cost = ob.kind === 'tree' ? 80 : 60;
-  if (!pay(cost, 'g')) {
+  if (G.res.g < OBSTACLE_COST[ob.kind]) {
     toast('Not enough Gold', 'warn');
     SFX.play('err');
     return;
   }
-  ob.dead = true;
-  rebuildOcc();
-  const rw = 3 + ((ob.id * 7) % 4);
-  addRes('w', rw);
-  FX.dust(ob.gx + 0.5, ob.gy + 0.5);
-  FX.float(ob.gx + 0.5, ob.gy + 0.5, '◆ +' + rw, '#3fe0a3');
-  SFX.play('build');
-  G.stat.obst++;
-  G.sel = null;
-  closeSheet();
-  checkQuests();
-  renderHUD();
+  void (async () => {
+    const beforeW = G.res.w;
+    if (!(await withVillage(api.clearObstacle(ob.id)))) {
+      SFX.play('err');
+      return;
+    }
+    const rw = G.res.w - beforeW;
+    FX.dust(ob.gx + 0.5, ob.gy + 0.5);
+    if (rw > 0) FX.float(ob.gx + 0.5, ob.gy + 0.5, '◆ +' + rw, '#3fe0a3');
+    SFX.play('build');
+    G.sel = null;
+    closeSheet();
+    renderHUD();
+    updateQuestBadge();
+  })();
 }
 
-/* ---------------- quests ---------------- */
-export function checkQuests(): void {
+/* -------------------------------- quests -------------------------------- */
+/** The server completes & credits quests; the client only maintains the badge. */
+export function updateQuestBadge(): void {
   let n = 0;
-  const v = questView();
-  for (const q of QUESTS) {
-    if (G.questDone[q.id]) continue;
-    if (q.chk(v)) {
-      G.questDone[q.id] = true;
-      addRes('w', q.reward, true);
-      view.GUIDE = null;
-      toast(`📜 War Order complete: +◆${q.reward}`, 'ok');
-      SFX.play('done');
-    } else n++;
-  }
+  for (const q of QUESTS) if (!G.questDone[q.id]) n++;
   const badge = $('questBadge');
   badge.style.display = n ? 'flex' : 'none';
   badge.textContent = String(n);
 }
+
+/** Cost previews for the sheet UI (server recomputes authoritatively). */
+export const uiFinishCost = (tLeft: number): number => finishNowCostReal(tLeft);
+export const uiTrainSeconds = realTrainSeconds;
+export const uiBuildSeconds = realBuildSeconds;
+export { jobOf };

@@ -2,10 +2,25 @@
   "name": "@warchest/db",
   "version": "0.1.0",
   "private": true,
-  "description": "WARCHEST Prisma schema + client. P0 placeholder; models land in P1.",
+  "description": "WARCHEST Prisma schema + client.",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
-    "build": "echo 'db package: prisma generate lands in P1'",
-    "typecheck": "echo 'db package: no TS yet'",
-    "test": "echo 'no db tests yet (P1)'"
+    "build": "prisma generate",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'no db tests'",
+    "generate": "prisma generate",
+    "migrate:deploy": "prisma migrate deploy"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.19.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.19.1",
+    "typescript": "^5.5.4"
   }
 }

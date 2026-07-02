@@ -39,6 +39,10 @@ export interface VillageBuilding {
   stored?: number;
   /** under construction / upgrade */
   busy?: boolean;
+  /** server timestamps (epoch ms) driving the job countdown */
+  busyUntil?: number;
+  jobKind?: 'new' | 'up';
+  jobTotalS?: number;
   dead?: boolean;
   /* presentational (renderer-managed) */
   aim?: number;
@@ -62,9 +66,13 @@ export interface BuildJob {
 }
 
 export interface TrainJob {
+  /** server row id */
+  sid?: number;
   type: TroopType;
   tLeft: number;
   total: number;
+  /** epoch ms; only set once the job is at the head of the queue */
+  finishesAt?: number;
 }
 
 export interface PlaceState {
@@ -79,6 +87,8 @@ export interface PlaceState {
 export interface BattleUI {
   sim: BattleSim;
   base: EnemyBase;
+  /** server battle row id — the deploy log resolves against it */
+  battleId: string;
   /** currently selected troop card */
   sel: TroopType | null;
   /** red no-deploy overlay, baked once per battle */

@@ -5,5 +5,6 @@ export * from './rng';
 export * from './iso';
 export * from './occupancy';
 export * from './enemy';
+export * from './snapshot';
 export * from './quests';
 export * from './battle/sim';

@@ -1,10 +1,14 @@
-/** Overlay modals: wallet (mock), leaderboard, War Orders + tap-to-guide, settings. Ported verbatim. */
-import { BUILD, QUESTS, fmt, iso, mulberry32, type QuestDef } from '@warchest/game-core';
+/**
+ * Overlay modals: wallet (real Solana SIWS + $WAR claims), season leaderboard,
+ * War Orders + tap-to-guide, defense mail ("you were raided"), settings.
+ */
+import { BUILD, QUESTS, fmt, iso, mmss, type QuestDef } from '@warchest/game-core';
+import { api, hydrate, serverConfig, withVillage, type DefenseEntry } from '../api';
 import { CAM, view } from '../camera';
-import { $ } from '../dom';
+import { $, $maybe } from '../dom';
 import { SFX } from '../sfx';
 import { G } from '../state';
-import { checkQuests, questView } from '../systems';
+import { questView, updateQuestBadge } from '../systems';
 import { renderHUD } from './hud';
 import { closeSheet, openSheet, setSheetHL } from './sheet';
 import { toast } from './toasts';
@@ -16,74 +20,213 @@ export function closeOv(id: string): void {
   $(id).classList.remove('show');
 }
 
-/* ---------------- wallet (mock — production build settles on Solana) ---------------- */
+/* ------------------------- Solana wallet (SIWS) ------------------------- */
+interface SolProvider {
+  publicKey?: { toBase58(): string } | null;
+  connect(): Promise<{ publicKey?: { toBase58(): string } } | void>;
+  signMessage(msg: Uint8Array, display?: string): Promise<{ signature: Uint8Array } | Uint8Array>;
+}
+
+function getProvider(): SolProvider | null {
+  const w = window as unknown as {
+    phantom?: { solana?: SolProvider };
+    solana?: SolProvider;
+    solflare?: SolProvider;
+    backpack?: SolProvider;
+  };
+  return w.phantom?.solana ?? w.solana ?? w.solflare ?? w.backpack ?? null;
+}
+
+const B58 = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58encode(bytes: Uint8Array): string {
+  let zeros = 0;
+  while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
+  const digits: number[] = [];
+  for (const byte of bytes) {
+    let carry = byte;
+    for (let i = 0; i < digits.length; i++) {
+      carry += digits[i]! << 8;
+      digits[i] = carry % 58;
+      carry = (carry / 58) | 0;
+    }
+    while (carry > 0) {
+      digits.push(carry % 58);
+      carry = (carry / 58) | 0;
+    }
+  }
+  let out = '1'.repeat(zeros);
+  for (let i = digits.length - 1; i >= 0; i--) out += B58[digits[i]!];
+  return out;
+}
+
+async function connectWallet(): Promise<void> {
+  const provider = getProvider();
+  if (!provider) {
+    toast('No Solana wallet found — install Phantom, Solflare or Backpack', 'warn');
+    return;
+  }
+  const res = await provider.connect();
+  const pk =
+    provider.publicKey?.toBase58() ??
+    (res && 'publicKey' in res ? res.publicKey?.toBase58() : undefined);
+  if (!pk) throw new Error('wallet did not expose a public key');
+  const { nonce } = await api.nonce();
+  const message = `WARCHEST wants you to sign in with your Solana account:\n${pk}\n\nDomain: ${serverConfig.domain}\nNonce: ${nonce}`;
+  const signed = await provider.signMessage(new TextEncoder().encode(message), 'utf8');
+  const sigBytes = signed instanceof Uint8Array ? signed : signed.signature;
+  const payload = await api.walletLogin(pk, b58encode(sigBytes), nonce);
+  hydrate(payload);
+  renderHUD();
+  updateQuestBadge();
+  toast('Wallet connected', 'ok');
+  SFX.play('done');
+}
+
 export function fillWallet(): void {
   const w = $('walletBody');
   if (!G.wallet) {
     w.innerHTML = `<button class="btn" id="wConnect" style="width:100%;padding:12px">🔗 Connect Wallet</button>
-    <div class="meta" style="margin-top:10px;color:var(--dim);text-align:center;font-size:11.5px">Mock connection — no real wallet is used in the prototype.</div>`;
+    <div class="meta" style="margin-top:10px;color:var(--dim);text-align:center;font-size:11.5px">Sign-in with Solana (Phantom · Solflare · Backpack). One wallet = one village.</div>`;
     $('wConnect').onclick = () => {
       $('wConnect').textContent = 'Connecting…';
-      setTimeout(() => {
-        const a =
-          '0x' +
-          Array.from({ length: 4 }, () =>
-            Math.floor(Math.random() * 65536).toString(16).padStart(4, '0'),
-          ).join('');
-        G.wallet = { addr: a, short: a.slice(0, 6) + '…' + a.slice(-4) };
-        renderHUD();
-        fillWallet();
-        checkQuests();
-        toast('Wallet connected', 'ok');
-        SFX.play('done');
-      }, 900);
+      connectWallet()
+        .then(() => fillWallet())
+        .catch((e: unknown) => {
+          toast(e instanceof Error ? e.message : 'Wallet connection failed', 'warn');
+          fillWallet();
+        });
     };
-  } else {
-    w.innerHTML = `
+    return;
+  }
+  const claimable = Math.min(Math.floor(G.res.w), serverConfig.claimDailyCap);
+  const canClaim = claimable >= serverConfig.claimMin;
+  const feePct = serverConfig.claimFeeBps / 100;
+  w.innerHTML = `
     <div class="stat"><span>Address</span><b style="font-family:monospace">${G.wallet.short}</b></div>
     <div class="stat"><span>$WAR balance</span><b style="color:var(--war)">◆ ${fmt(G.res.w)}</b></div>
     <div class="stat"><span>Bridged (lifetime)</span><b>◆ ${fmt(G.stat.warClaimed)}</b></div>
-    <button class="btn war" id="wClaim" style="width:100%;margin-top:14px;padding:11px">⛓️ Claim $WAR on-chain</button>
-    <div class="meta" style="margin-top:10px;color:var(--dim);font-size:11.5px">Production build: SPL token settlement + season escrow. Prototype: simulated tx.</div>`;
-    $('wClaim').onclick = () => {
-      if (G.res.w <= 0) {
-        toast('Nothing to claim', 'warn');
-        return;
-      }
-      G.stat.warClaimed += G.res.w;
-      G.stat.claims++;
-      checkQuests();
-      const tx =
-        '0x' + Math.random().toString(16).slice(2, 6) + '…' + Math.random().toString(16).slice(2, 6);
-      toast(`Tx confirmed · ${tx} · ◆${fmt(G.res.w)} bridged (mock)`, 'ok');
-      SFX.play('coin');
-      fillWallet();
-    };
+    <button class="btn war" id="wClaim" style="width:100%;margin-top:14px;padding:11px" ${canClaim ? '' : 'disabled'}>⛓️ Claim ◆${canClaim ? fmt(claimable) : fmt(serverConfig.claimMin)} on-chain</button>
+    <div class="meta" style="margin-top:8px;color:var(--dim);font-size:11.5px">Min ◆${serverConfig.claimMin} · ${feePct}% fee to treasury · daily cap ◆${serverConfig.claimDailyCap} · 1 claim/hour.</div>
+    <div id="wClaims" style="margin-top:10px"></div>`;
+  $('wClaim').onclick = () => {
+    if (!canClaim) return;
+    $('wClaim').textContent = 'Claiming…';
+    api
+      .claim(claimable)
+      .then((r) => {
+        hydrate(r.village);
+        renderHUD();
+        toast(`Claim ◆${r.claim.amount} queued (fee ◆${r.claim.fee}) — settling on-chain`, 'ok');
+        SFX.play('coin');
+        fillWallet();
+      })
+      .catch((e: unknown) => {
+        toast(e instanceof Error ? e.message : 'Claim failed', 'warn');
+        fillWallet();
+      });
+  };
+  void api.claims().then(({ claims }) => {
+    const box = $maybe('wClaims');
+    if (!box || !claims.length) return;
+    box.innerHTML =
+      `<div class="meta" style="margin:6px 0 2px;color:var(--dim)">Recent claims</div>` +
+      claims
+        .slice(0, 5)
+        .map(
+          (c) =>
+            `<div class="stat"><span>◆${c.amount} · ${new Date(c.at).toLocaleDateString()}</span><b style="color:${c.status === 'confirmed' ? 'var(--war)' : c.status === 'failed' ? 'var(--bad)' : 'var(--gold2)'}">${c.status}${c.txSig && !c.txSig.startsWith('mock') ? ' · ' + c.txSig.slice(0, 4) + '…' : ''}</b></div>`,
+        )
+        .join('');
+  });
+}
+
+/* ---------------------------- leaderboard ---------------------------- */
+export function openLeaderboard(): void {
+  $('lbBody').innerHTML = '<div class="meta" style="color:var(--dim);padding:10px 0">Loading…</div>';
+  openOv('lbModal');
+  api
+    .leaderboard()
+    .then(({ top, me }) => {
+      let h = top
+        .slice(0, 100)
+        .map(
+          (r) =>
+            `<div class="lb ${r.me ? 'me' : ''}"><span class="rk">${r.rank}</span><span class="nm">${r.me ? 'You' : r.name}</span><span class="tp">🏆 ${r.trophies}</span></div>`,
+        )
+        .join('');
+      if (me && !top.some((r) => r.me))
+        h += `<div class="meta" style="text-align:center;padding:4px">···</div>
+          <div class="lb me"><span class="rk">${me.rank}</span><span class="nm">You</span><span class="tp">🏆 ${me.trophies}</span></div>`;
+      $('lbBody').innerHTML = h || '<div class="meta">No raiders yet — be the first!</div>';
+    })
+    .catch(() => {
+      $('lbBody').innerHTML = '<div class="meta" style="color:var(--bad)">Failed to load leaderboard</div>';
+    });
+}
+
+/* ------------------- defense mail ("you were raided") ------------------- */
+export function initDefenseMail(): void {
+  // pill next to the leaderboard button
+  const lbBtn = $('lbBtn');
+  const pill = document.createElement('div');
+  pill.className = 'pill';
+  pill.id = 'mailBtn';
+  pill.style.position = 'relative';
+  pill.innerHTML = `📬<span class="badge" id="mailBadge" style="display:none">0</span>`;
+  lbBtn.parentElement?.insertBefore(pill, lbBtn);
+  // modal
+  const ov = document.createElement('div');
+  ov.className = 'overlay';
+  ov.id = 'mailModal';
+  ov.innerHTML = `<div class="modal">
+    <button class="x" data-close="mailModal">✕</button>
+    <h2 class="disp">Defense Log</h2>
+    <div class="sub">Raids against your warcamp while you were away</div>
+    <div id="mailBody"></div>
+  </div>`;
+  document.querySelector('.wc-game')?.appendChild(ov);
+  (ov.querySelector('[data-close]') as HTMLElement).onclick = () => closeOv('mailModal');
+  pill.onclick = () => {
+    SFX.play('tap');
+    $('mailBody').innerHTML = '<div class="meta" style="color:var(--dim);padding:10px 0">Loading…</div>';
+    openOv('mailModal');
+    api
+      .defenseLog()
+      .then(({ entries }) => {
+        $('mailBadge').style.display = 'none';
+        $('mailBody').innerHTML = entries.length
+          ? entries.map(renderMailRow).join('')
+          : '<div class="meta" style="color:var(--dim);padding:10px 0">No raids yet. Your walls are doing their job.</div>';
+      })
+      .catch(() => {
+        $('mailBody').innerHTML = '<div class="meta" style="color:var(--bad)">Failed to load</div>';
+      });
+  };
+  // (badge refresh happens after the session opens — client.ts boot())
+}
+
+function renderMailRow(e: DefenseEntry): string {
+  const stars = '★'.repeat(e.stars) + '<span style="opacity:.25">' + '★'.repeat(3 - e.stars) + '</span>';
+  return `<div class="qst"><div class="qi">⚔️</div>
+    <div class="qt"><b>${e.attacker}</b> raided you — ${Math.floor(e.pct)}% destroyed ${stars}<br>
+    <span style="color:var(--dim);font-size:12px">−🪙${fmt(e.lootG)} · −🔮${fmt(e.lootM)} · ${new Date(e.at).toLocaleString()}</span></div></div>`;
+}
+
+export async function refreshMailBadge(): Promise<void> {
+  try {
+    const res = await fetch('/api/battle/defense-log?peek=1', { credentials: 'same-origin' });
+    if (!res.ok) return;
+    const { unseen } = (await res.json()) as { unseen: number };
+    const badge = $maybe('mailBadge');
+    if (!badge) return;
+    badge.style.display = unseen > 0 ? 'flex' : 'none';
+    badge.textContent = String(unseen);
+  } catch {
+    /* offline — ignore */
   }
 }
 
-/* ---------------- leaderboard ---------------- */
-const LB_NAMES = [
-  '0xRaidLord', 'GoblinSlayer.sol', 'xX_Deg3n_Xx', 'SatoshiKnight', 'wagmi_warlord', 'MoonKeep',
-  'ser_pump', 'anon4471', 'ChainBarbarian', 'FloorSweeper', '0xValkyrie', 'rugproof.eth',
-];
-
-export function openLeaderboard(): void {
-  const rng = mulberry32(20260702);
-  const rows: Array<{ n: string; t: number; me?: 1 }> = [];
-  for (let i = 0; i < 9; i++) rows.push({ n: LB_NAMES[i % LB_NAMES.length]!, t: Math.floor(40 + rng() * 860) });
-  rows.push({ n: 'You', t: G.trophies, me: 1 });
-  rows.sort((a, b) => b.t - a.t);
-  $('lbBody').innerHTML = rows
-    .map(
-      (r, i) =>
-        `<div class="lb ${r.me ? 'me' : ''}"><span class="rk">${i + 1}</span><span class="nm">${r.n}</span><span class="tp">🏆 ${r.t}</span></div>`,
-    )
-    .join('');
-  openOv('lbModal');
-}
-
-/* ---------------- quest guide (tap-to-guide routing, client-side) ---------------- */
+/* ------------------ quest guide (tap-to-guide routing) ------------------ */
 export function focusAt(gx: number, gy: number, s: number, h: number): void {
   const p = iso(gx, gy);
   view.CAMT = { sx: CAM.x, sy: CAM.y, sz: CAM.z, x: p.x, y: p.y, z: Math.max(CAM.z, 1.05), t: 0 };
@@ -141,7 +284,7 @@ export function guideTo(q: QuestDef): void {
   }
 }
 
-/* ---------------- quests modal ---------------- */
+/* ------------------------------ quests modal ------------------------------ */
 export function openQuests(): void {
   const done = QUESTS.filter((q) => G.questDone[q.id]).length;
   $('questCount').textContent = done + ' / ' + QUESTS.length;
@@ -152,6 +295,12 @@ export function openQuests(): void {
     return `<div class="qst ${dn ? 'done' : 'go'}" data-q="${q.id}"><div class="qi">${q.ico}</div><div class="qt">${tx}</div><div class="qr">◆ ${q.reward}</div>${dn ? '' : '<div class="qgo">GO</div>'}</div>`;
   }).join('');
   openOv('quests');
+}
+
+/** Shield indicator helper for the HUD (optional surface). */
+export function shieldText(until: number | null): string {
+  if (!until || until < Date.now()) return '';
+  return `🛡 ${mmss((until - Date.now()) / 1000)}`;
 }
 
 /** Wire modal close buttons + quest row taps. Call once at boot. */
@@ -168,4 +317,8 @@ export function initModals(): void {
     SFX.play('tap');
     guideTo(q);
   });
+  initDefenseMail();
 }
+
+// re-export for callers that had used systems.checkQuests previously
+export { withVillage };

@@ -54,8 +54,8 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
     <div class="tag">BUILD · RAID · EARN</div>
     <div class="feat"><div class="fi">🏰</div><div><b>Build your warcamp.</b> Mine Gold, harvest Mana, wall it all in before raiders come knocking.</div></div>
     <div class="feat"><div class="fi">⚔️</div><div><b>Raid enemy bases.</b> Train an army, deploy at the edges, and let the AI fight. 50% = ★, destroy the Keep = ★, 100% = ★★★.</div></div>
-    <div class="feat"><div class="fi">◆</div><div><b>Earn $WAR on-chain.</b> Raids and quests pay out $WAR — spend it to rush timers or hire builders. Wallet layer is mocked in this build.</div></div>
-    <div class="note">⚡ Prototype build — upgrade & training timers are accelerated ~200× so you can feel the full loop in minutes. Progress is session-only.</div>
+    <div class="feat"><div class="fi">◆</div><div><b>Earn $WAR on-chain.</b> Raids and quests pay out $WAR — spend it to rush timers or hire builders, or claim it on-chain to your Solana wallet.</div></div>
+    <div class="note">⚔️ Your warcamp is saved to your account. Connect a Solana wallet to secure it, raid real players, and claim $WAR on-chain.</div>
     <button class="btn" id="introGo" style="width:100%;margin-top:16px;padding:13px;font-size:15px">⚔️ Enter Village</button>
   </div>
 </div>
@@ -95,7 +95,7 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
   <div class="modal">
     <button class="x" data-close="wallet">✕</button>
     <h2 class="disp">Wallet</h2>
-    <div class="sub">GameFi layer — mocked for this prototype. Production build settles $WAR on-chain.</div>
+    <div class="sub">Sign in with Solana. $WAR you earn in-game settles on-chain when you claim.</div>
     <div id="walletBody"></div>
   </div>
 </div>

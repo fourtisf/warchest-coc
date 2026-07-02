@@ -1,0 +1,181 @@
+// WARCHEST data model — build spec §Data model, refined.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String    @id @default(cuid())
+  wallet    String?   @unique
+  createdAt DateTime  @default(now())
+  banned    Boolean   @default(false)
+  isAdmin   Boolean   @default(false)
+  village   Village?
+  ledger    WarLedger[]
+  claims    Claim[]
+  attacks   Battle[]  @relation("attacker")
+  defenses  Battle[]  @relation("defender")
+  seasons   SeasonScore[]
+}
+
+model Village {
+  id            String     @id @default(cuid())
+  userId        String     @unique
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gold          Float      @default(350)
+  mana          Float      @default(350)
+  war           Int        @default(40)
+  trophies      Int        @default(10)
+  buildersTotal Int        @default(2)
+  shieldUntil   DateTime?
+  lastSeen      DateTime   @default(now())
+  createdAt     DateTime   @default(now())
+  /// quest/progress counters (trained, wins, raids, gCollected, ... tTypes)
+  statJson      Json       @default("{}")
+  buildings     Building[]
+  obstacles     Obstacle[]
+  army          Army?
+  trainJobs     TrainJob[]
+  questStates   QuestState[]
+
+  @@index([trophies])
+}
+
+model Building {
+  id        Int       @id @default(autoincrement())
+  villageId String
+  village   Village   @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  type      String
+  level     Int       @default(1)
+  gx        Int
+  gy        Int
+  /// mine/well on-site storage at `storedAt` (production accrues lazily from there)
+  storedFloat Float   @default(0)
+  storedAt  DateTime  @default(now())
+  /// under construction/upgrade until this moment
+  busyUntil DateTime?
+  jobKind   String?   // 'new' | 'up'
+  jobTotalS Float?    // job length in seconds, for progress bars
+
+  @@index([villageId])
+}
+
+model Obstacle {
+  id        Int     @id @default(autoincrement())
+  villageId String
+  village   Village @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  kind      String  // 'tree' | 'rock'
+  gx        Int
+  gy        Int
+  cleared   Boolean @default(false)
+
+  @@index([villageId])
+}
+
+model Army {
+  villageId String  @id
+  village   Village @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  raider    Int     @default(0)
+  sniper    Int     @default(0)
+  bruiser   Int     @default(0)
+  gargoyle  Int     @default(0)
+}
+
+model TrainJob {
+  id         Int      @id @default(autoincrement())
+  villageId  String
+  village    Village  @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  troopType  String
+  /// set when the job reaches the head of the queue; null while waiting
+  finishesAt DateTime?
+  totalS     Float
+
+  @@index([villageId])
+}
+
+model QuestState {
+  villageId String
+  village   Village @relation(fields: [villageId], references: [id], onDelete: Cascade)
+  questId   String
+  done      Boolean @default(false)
+  doneAt    DateTime?
+
+  @@id([villageId, questId])
+}
+
+model Battle {
+  id                   String   @id @default(cuid())
+  attackerId           String
+  attacker             User     @relation("attacker", fields: [attackerId], references: [id])
+  defenderId           String?
+  defender             User?    @relation("defender", fields: [defenderId], references: [id])
+  /// SimBuilding[] + th + pool at scout time
+  defenderSnapshotJson Json
+  seed                 Int
+  deployLogJson        Json?
+  stars                Int      @default(0)
+  pct                  Float    @default(0)
+  lootG                Int      @default(0)
+  lootM                Int      @default(0)
+  warEarned            Int      @default(0)
+  trophyDelta          Int      @default(0)
+  status               String   @default("scouted") // scouted | resolved | expired | aborted
+  validated            Boolean  @default(false)
+  seenByDefender       Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  resolvedAt           DateTime?
+
+  @@index([attackerId, status])
+  @@index([defenderId, resolvedAt])
+}
+
+model WarLedger {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  delta     Int
+  reason    String   // quest | raid | spend | claim | obstacle | admin
+  refId     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
+
+model Claim {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  amount    Int
+  fee       Int
+  wallet    String
+  txSig     String?
+  status    String   @default("pending") // pending | sent | confirmed | failed
+  attempts  Int      @default(0)
+  error     String?
+  createdAt DateTime @default(now())
+  sentAt    DateTime?
+
+  @@index([status, createdAt])
+}
+
+model Season {
+  id       String        @id @default(cuid())
+  startsAt DateTime
+  endsAt   DateTime
+  scores   SeasonScore[]
+}
+
+model SeasonScore {
+  seasonId String
+  season   Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User   @relation(fields: [userId], references: [id])
+  trophies Int    @default(0)
+
+  @@id([seasonId, userId])
+  @@index([seasonId, trophies])
+}

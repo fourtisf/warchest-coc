@@ -1,9 +1,10 @@
 /**
- * Game bootstrap: injects the (verbatim) prototype markup, initialises every
- * subsystem, wires the UI, and runs the fixed-timestep main loop. React mounts
- * this exactly once — the loop is fully imperative and isolated from React.
+ * Game bootstrap: injects the game markup, initialises subsystems, wires the
+ * UI, opens the server session (guest or wallet), and runs the fixed-timestep
+ * loop. The server is authoritative — a light poller keeps local state fresh.
  */
 import { lerp } from '@warchest/game-core';
+import { api, hydrate } from './api';
 import {
   disposeBattle,
   endBattlePressed,
@@ -21,42 +22,21 @@ import { initInput } from './input';
 import { GAME_MARKUP } from './markup';
 import { render } from './render';
 import { SFX } from './sfx';
-import { freshState, G, jobOf, mkB, rebuildOcc, resetBid } from './state';
-import { checkQuests, placeCancel, placeConfirm, tickJobs, tickProduction, tickTraining } from './systems';
+import { freshState, G, jobOf } from './state';
+import {
+  placeCancel,
+  placeConfirm,
+  sync,
+  tickJobs,
+  tickProduction,
+  tickTraining,
+  updateQuestBadge,
+} from './systems';
 import { world } from './world';
 import { renderHUD } from './ui/hud';
-import { fillWallet, initModals, openLeaderboard, openOv, openQuests } from './ui/modals';
+import { fillWallet, initModals, openLeaderboard, openOv, openQuests, refreshMailBadge } from './ui/modals';
 import { initSheet, openSheet, refreshSheet, sheetInfoArg, sheetIs } from './ui/sheet';
 import { toast } from './ui/toasts';
-
-function initVillage(): void {
-  Object.assign(G, freshState());
-  resetBid();
-  const S: ReadonlyArray<readonly [Parameters<typeof mkB>[0], number, number]> = [
-    ['keep', 18, 18], ['mine', 24, 19], ['well', 13, 19], ['vault', 24, 14], ['tank', 13, 14],
-    ['cannon', 19, 24], ['barracks', 12, 24], ['camp', 25, 24],
-  ];
-  for (const [t, x, y] of S) G.buildings.push(mkB(t, x, y, 1));
-  for (let x = 17; x <= 22; x++) {
-    G.buildings.push(mkB('wall', x, 17, 1));
-    G.buildings.push(mkB('wall', x, 22, 1));
-  }
-  for (let y = 18; y <= 21; y++) {
-    G.buildings.push(mkB('wall', 17, y, 1));
-    G.buildings.push(mkB('wall', 22, y, 1));
-  }
-  let oid = 1;
-  const OBS: ReadonlyArray<readonly ['tree' | 'rock', number, number]> = [
-    ['tree', 6, 8], ['tree', 30, 6], ['tree', 8, 29], ['tree', 31, 30], ['tree', 26, 5],
-    ['tree', 5, 20], ['tree', 33, 17], ['tree', 12, 33], ['rock', 28, 11], ['rock', 10, 12],
-  ];
-  for (const [k, x, y] of OBS) G.obstacles.push({ id: oid++, kind: k, gx: x, gy: y });
-  // head start, as in the prototype
-  const mine = G.buildings.find((b) => b.type === 'mine');
-  if (mine) mine.stored = 120;
-  const well = G.buildings.find((b) => b.type === 'well');
-  if (well) well.stored = 120;
-}
 
 function wireButtons(): void {
   $('shopBtn').onclick = () => {
@@ -77,7 +57,9 @@ function wireButtons(): void {
     $('sfxToggle').textContent = G.sfx ? 'On' : 'Off';
   };
   $('resetBtn').onclick = () => {
-    if (confirm('Reset the village? Session progress will be lost.')) location.reload();
+    if (confirm('Reset the village? This signs you out — a new warcamp starts fresh.')) {
+      void api.logout().finally(() => location.reload());
+    }
   };
   $('raidBtn').onclick = () => {
     SFX.play('tap');
@@ -128,7 +110,7 @@ function update(dt: number): void {
   }
   if (G.mode === 'battle' || G.mode === 'battle_deploy') tickBattle();
   tickProduction(dt);
-  tickJobs(dt);
+  tickJobs();
   tickTraining(dt);
   hudAcc += dt;
   if (hudAcc > 0.25) {
@@ -142,16 +124,58 @@ function update(dt: number): void {
 export function bootGame(root: HTMLElement): () => void {
   document.documentElement.classList.add('wc-play');
   root.innerHTML = GAME_MARKUP;
-  initVillage();
+  Object.assign(G, freshState());
   initCamera($('game') as unknown as HTMLCanvasElement);
   world.ground = buildGround();
-  rebuildOcc();
   renderHUD();
-  checkQuests();
   initSheet();
   initModals();
   initInput();
   wireButtons();
+
+  // open the server session (guest cookie or existing account)
+  let disposed = false;
+  const boot = async (): Promise<void> => {
+    try {
+      hydrate(await api.guest());
+      renderHUD();
+      updateQuestBadge();
+      void refreshMailBadge();
+    } catch {
+      if (disposed) return;
+      toast('Cannot reach the server — retrying…', 'warn');
+      setTimeout(() => void boot(), 3000);
+    }
+  };
+  void boot();
+
+  // authoritative-state poller: dirty countdowns sync fast, full refresh every 30s
+  let lastFull = Date.now();
+  const poll = window.setInterval(() => {
+    if (document.hidden || G.battle || sync.inflight) return;
+    const stale = Date.now() - lastFull > 30_000;
+    if (!sync.dirty && !stale) return;
+    sync.dirty = false;
+    lastFull = Date.now();
+    sync.inflight = true;
+    api
+      .me()
+      .then((p) => {
+        hydrate(p);
+        renderHUD();
+        updateQuestBadge();
+        refreshSheet();
+      })
+      .catch(() => {
+        /* transient network error — the next poll retries */
+      })
+      .finally(() => {
+        sync.inflight = false;
+      });
+  }, 1000);
+  const mailPoll = window.setInterval(() => {
+    if (!document.hidden && !G.battle) void refreshMailBadge();
+  }, 60_000);
 
   let raf = 0;
   let last = performance.now(), accu = 0;
@@ -163,13 +187,21 @@ export function bootGame(root: HTMLElement): () => void {
       update(1 / 60);
       accu -= 1 / 60;
     }
-    render();
+    try {
+      render();
+    } catch (e) {
+      // one bad frame must never kill the loop
+      console.error('render error:', e);
+    }
     raf = requestAnimationFrame(frame);
   };
   raf = requestAnimationFrame(frame);
 
   return () => {
+    disposed = true;
     cancelAnimationFrame(raf);
+    clearInterval(poll);
+    clearInterval(mailPoll);
     disposeBattle();
     disposeCamera();
     world.ground = null;

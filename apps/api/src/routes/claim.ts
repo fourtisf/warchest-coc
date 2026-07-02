@@ -1,0 +1,71 @@
+/** P3: $WAR claims — off-chain ledger is canonical; the worker pays out on-chain. */
+import type { FastifyInstance } from 'fastify';
+import { prisma } from '@warchest/db';
+import { z } from 'zod';
+import { ENV } from '../env';
+import { materializeVillage, statOf } from '../materialize';
+import { serializeVillage } from '../serialize';
+import { bumpDaily, getDaily, store } from '../store';
+import { requireUser } from './auth';
+
+export function claimRoutes(app: FastifyInstance): void {
+  app.post('/claim', async (req, reply) => {
+    const user = await requireUser(req);
+    const { amount } = z.object({ amount: z.number().int().positive() }).parse(req.body);
+    if (!user.wallet) return reply.code(400).send({ error: 'Connect a wallet first' });
+    if (amount < ENV.CLAIM_MIN)
+      return reply.code(400).send({ error: `Minimum claim is ◆${ENV.CLAIM_MIN}` });
+    const lockKey = `wc:claimlock:${user.id}`;
+    if (await store().get(lockKey))
+      return reply.code(429).send({ error: 'One claim per hour — try again later' });
+    const today = await getDaily('claim', user.id);
+    if (today + amount > ENV.CLAIM_DAILY_CAP)
+      return reply.code(400).send({ error: `Daily claim cap is ◆${ENV.CLAIM_DAILY_CAP}` });
+
+    const now = new Date();
+    const v = await materializeVillage(user.id, now);
+    if (v.war < amount) return reply.code(400).send({ error: 'Not enough $WAR' });
+
+    const db = prisma();
+    const fee = Math.floor((amount * ENV.CLAIM_FEE_BPS) / 10000);
+    v.war -= amount;
+    await db.village.update({ where: { id: v.id }, data: { war: v.war } });
+    const claim = await db.claim.create({
+      data: { userId: user.id, amount, fee, wallet: user.wallet },
+    });
+    await db.warLedger.create({
+      data: { userId: user.id, delta: -amount, reason: 'claim', refId: claim.id },
+    });
+    const stat = statOf(v);
+    stat.claims += 1;
+    stat.warClaimed += amount;
+    await db.village.update({ where: { id: v.id }, data: { statJson: stat as object } });
+    await store().setex(lockKey, 3600, '1');
+    await bumpDaily('claim', user.id, amount);
+
+    const fresh = await materializeVillage(user.id, now);
+    return {
+      claim: { id: claim.id, amount, fee, status: claim.status },
+      village: serializeVillage(fresh, user, now),
+    };
+  });
+
+  app.get('/claims', async (req) => {
+    const user = await requireUser(req);
+    const rows = await prisma().claim.findMany({
+      where: { userId: user.id },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+    });
+    return {
+      claims: rows.map((c) => ({
+        id: c.id,
+        amount: c.amount,
+        fee: c.fee,
+        status: c.status,
+        txSig: c.txSig,
+        at: c.createdAt.getTime(),
+      })),
+    };
+  });
+}

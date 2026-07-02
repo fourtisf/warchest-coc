@@ -26,10 +26,12 @@ pnpm build        # all packages
 
 ## Phases
 
-- **P0 — Port** ✅ monorepo, game-core extraction, client-only game 1:1 with the prototype (accelerated timers, session-only state, mock wallet).
-- **P1 — Accounts & persistence**: SIWS auth, Prisma, server-authoritative actions, real timers (`REAL_BUILD_TIMES` in game-core), server-side quest tracking.
-- **P2 — Real battles**: village snapshot pool, deploy-log re-simulation (`simulateBattle` already shared), shields, defense logs.
-- **P3 — On-chain**: $WAR SPL mint (devnet first), claim worker, ledger UI, fees/caps.
-- **P4 — Meta**: season leaderboard, profile, admin panel.
+- **P0 — Port** ✅ monorepo, game-core extraction, client 1:1 with the prototype.
+- **P1 — Accounts & persistence** ✅ guest + SIWS auth, Prisma/PostgreSQL, every village action server-authoritative, real timers (`TIME_SCALE` env knob), server-side quest tracking + WarLedger.
+- **P2 — Real battles** ✅ matchmaking against real village snapshots (procedural fallback), server-side deploy-log re-simulation, shields, trophies, defense log ("you were raided").
+- **P3 — On-chain** ✅ claim API (min/fee/daily cap/rate limit) + PM2 worker; `CLAIM_MODE=mock` out of the box, `pnpm --filter @warchest/api setup:devnet` mints devnet $WAR and flips to real SPL payouts.
+- **P4 — Meta** ✅ season leaderboard (top 100 + around-me), $WAR ledger endpoint, admin API (ban / adjust / overview via `ADMIN_WALLET`).
+- **Next**: content depth (more troops/spells/traps), clans, revenge raids, PWA.
 
+Deploy: `deploy/vps-deploy.sh` (nivar cleanup → Postgres/Redis → migrate → PM2 ×3 → nginx + TLS).
 Architecture decisions: see [DECISIONS.md](./DECISIONS.md).

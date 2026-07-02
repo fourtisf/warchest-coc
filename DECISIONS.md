@@ -108,6 +108,75 @@ test. P2 must additionally bound scout→first-deploy wall time server-side
 (matchmaking-token TTL) so hostile logs can't demand arbitrarily long empty
 pre-rolls.
 
+## P1–P4 — Server-authoritative build
+
+### D12. Lazy materialization instead of server ticks
+The server never ticks. Every read/mutation first *materializes* the village
+to "now": finished `busyUntil` jobs level up, the training queue drains
+sequentially from timestamps, production accrues as `rate × elapsed`
+(folded into `storedFloat` on collect/upgrade). Timestamps travel to the
+client, which renders countdowns locally and pulls `/me` when one crosses
+zero (plus a 30s freshness poll).
+
+### D13. Real-time economy knobs
+`TIME_SCALE` (default 1) divides the spec's real durations; production is
+`CFG.rate / PROD_ACCEL × TIME_SCALE` with `PROD_ACCEL=180` (the prototype's
+demo acceleration, measured from Keep L2: 20s demo ↔ 1h real). Finish-now
+uses the spec formula `max(2, ceil(min×1.5))`. All env-tunable.
+
+### D14. Auth: guest-first, SIWS to keep
+A village is created on first visit (httpOnly JWT cookie, 180d). Connecting
+a wallet signs a SIWS-style message (nonce single-use, ed25519 verified via
+tweetnacl); if the wallet already owns a village the session switches to it —
+one wallet = one village. Wallets connect through injected providers
+(Phantom/Solflare/Backpack) rather than the React wallet-adapter suite — the
+game UI is imperative DOM; the adapter's React context doesn't fit. Same
+wallet-standard API, documented swap point.
+
+### D15. Matchmaking pool in SQL, limits in Redis
+Target selection is a SQL query (±20% trophies, not shielded, offline >3min,
+not banned, random pick) — correct and simple at current scale; the spec's
+Redis pool is an optimization to revisit at >10k villages. Redis (with an
+in-memory dev fallback) backs what actually needs TTL semantics: SIWS nonces,
+claim rate-limit (1/h), claim daily cap (◆500), raid-earn soft cap
+(◆400/day → 50% rate after).
+
+### D16. Battle rows are scout tokens
+`/battle/scout` stores the defender snapshot + seed in a Battle row and the
+client resolves against its id within a 30-min TTL. Real defenders are
+snapshotted at scout time via `villageBaseSnapshot` (raidable share = 20% of
+stored resources, distributed vault .5 / keep .3 / collectors .2 — the
+prototype's loot shape). Defender loses exactly what the validated sim says
+was looted; ≥2★ defeat grants a 12h shield. Deploy logs are zod-validated
+(≤400 entries, monotonic ticks, bounded pre-roll per D11).
+
+### D17. Claims: canonical off-chain ledger, worker pays out
+`POST /claim` debits the village + WarLedger immediately and enqueues a
+Claim row; the `warchest-worker` PM2 process settles it (5 retries, then
+refund). `CLAIM_MODE=mock` confirms without a chain tx so the loop works
+before a mint exists; `setup:devnet` generates the hot wallet, airdrops,
+creates the $WAR mint (6 decimals) and flips `CLAIM_MODE=chain`. Fee 5%,
+min ◆100, cap ◆500/day, 1 claim/hour — all env-tunable.
+
+### D18. Prototype FX bug fixed (boom ring)
+The prototype's expanding-ring formula `p.r + (1 - a/p.L)*26` is negative
+for a young ring — `ctx.ellipse` throws `IndexSizeError` and would kill the
+rAF loop on the first building destruction. Replaced with the intended
+`p.r + (1 - a)*26` (and the render loop is try/catch-hardened). Found by the
+full-stack browser e2e.
+
+### D19. /api routing
+nginx routes `/api` straight to Fastify (:8787); Next.js also carries an
+`/api` rewrite so local dev works with two processes and no nginx.
+
+## Verification (P1–P4)
+- Local full-stack e2e in the sandbox (PostgreSQL 16 + Redis + API + Next +
+  Chromium): guest boot → collect (quest c1 auto-credited server-side) →
+  place → train → scout → deploy → server-validated resolve (loot/trophies/
+  army applied), SIWS login with a real ed25519 signature, claim-min
+  rejection, leaderboard around-me, WarLedger entries.
+- 41 game-core tests green; strict typecheck across all packages.
+
 ## Verification (P0 gate)
 - `game-core`: 40 vitest tests — determinism (same seed+log ⇒ identical
   result across 1000 runs; live-vs-replay equality), battle rules ($WAR/
