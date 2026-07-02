@@ -72,6 +72,9 @@ model Obstacle {
   gx        Int
   gy        Int
   cleared   Boolean @default(false)
+  /// a builder is clearing it until this moment
+  clearUntil  DateTime?
+  clearTotalS Float?
 
   @@index([villageId])
 }

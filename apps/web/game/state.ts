@@ -28,6 +28,10 @@ import { toast } from './ui/toasts';
 /** Prototype ran its (already short) timers at 1x; kept as a tuning knob. */
 export const DEMO_SPEED = 1;
 
+/** serverNow - Date.now(), set on every hydrate; all countdowns use it. */
+export const clock = { offset: 0 };
+export const nowMs = (): number => Date.now() + clock.offset;
+
 export interface VillageBuilding {
   id: number;
   type: BuildingType;
@@ -56,6 +60,9 @@ export interface Obstacle {
   gx: number;
   gy: number;
   dead?: boolean;
+  /** a builder is clearing it until this epoch-ms moment */
+  clearUntil?: number;
+  clearTotalS?: number;
 }
 
 export interface BuildJob {
@@ -200,8 +207,13 @@ export function jobOf(bid: number): BuildJob | undefined {
   return G.jobs.find((j) => j.bid === bid);
 }
 
+export function clearingObstacles(): Obstacle[] {
+  const now = nowMs();
+  return G.obstacles.filter((o) => !o.dead && o.clearUntil !== undefined && o.clearUntil > now);
+}
+
 export function freeBuilders(): number {
-  return G.buildersTotal - G.jobs.length;
+  return G.buildersTotal - G.jobs.length - clearingObstacles().length;
 }
 
 export function countOf(type: BuildingType): number {

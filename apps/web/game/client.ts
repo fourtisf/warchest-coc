@@ -110,7 +110,7 @@ function update(dt: number): void {
   }
   if (G.mode === 'battle' || G.mode === 'battle_deploy') tickBattle();
   tickProduction(dt);
-  tickJobs();
+  tickJobs(dt);
   tickTraining(dt);
   hudAcc += dt;
   if (hudAcc > 0.25) {

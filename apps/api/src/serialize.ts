@@ -32,7 +32,14 @@ export function serializeVillage(v: FullVillage, user: User, now = new Date()): 
     })),
     obstacles: v.obstacles
       .filter((o) => !o.cleared)
-      .map((o) => ({ id: o.id, kind: o.kind, gx: o.gx, gy: o.gy })),
+      .map((o) => ({
+        id: o.id,
+        kind: o.kind,
+        gx: o.gx,
+        gy: o.gy,
+        clearUntil: o.clearUntil ? o.clearUntil.getTime() : null,
+        clearTotalS: o.clearTotalS,
+      })),
     army: {
       raider: v.army.raider,
       sniper: v.army.sniper,

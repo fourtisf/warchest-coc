@@ -5,6 +5,7 @@ import {
   BUILD,
   MAP,
   REAL_BUILD_TIMES,
+  REAL_CLEAR_TIMES,
   REAL_TRAIN_TIMES,
   TROOP,
   canPlace as canPlaceOn,
@@ -32,6 +33,10 @@ export function buildSeconds(type: BuildingType, level: number): number {
 
 export function trainSeconds(t: TroopType): number {
   return REAL_TRAIN_TIMES[t] / ENV.TIME_SCALE;
+}
+
+export function clearSeconds(kind: 'tree' | 'rock'): number {
+  return REAL_CLEAR_TIMES[kind] / ENV.TIME_SCALE;
 }
 
 /** Real production per second (prototype rates are ~PROD_ACCEL× demo-accelerated). */
@@ -84,8 +89,16 @@ export function barracksSpeed(buildings: readonly Building[], now: Date): number
   return Math.max(1, buildings.filter((b) => b.type === 'barracks' && !isBusy(b, now)).length);
 }
 
-export function activeJobs(buildings: readonly Building[], now: Date): number {
-  return buildings.filter((b) => isBusy(b, now)).length;
+export function activeJobs(
+  buildings: readonly Building[],
+  obstacles: readonly Obstacle[],
+  now: Date,
+): number {
+  return (
+    buildings.filter((b) => isBusy(b, now)).length +
+    obstacles.filter((o) => !o.cleared && o.clearUntil && o.clearUntil.getTime() > now.getTime())
+      .length
+  );
 }
 
 /** Village occupancy grid: building ids positive, obstacle ids negative. */

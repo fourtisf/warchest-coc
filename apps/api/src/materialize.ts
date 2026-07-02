@@ -83,6 +83,22 @@ export async function materializeVillage(userId: string, now = new Date()): Prom
     }
   }
 
+  // 1b. finished obstacle clears → reward ◆ and mark cleared
+  for (const ob of v.obstacles) {
+    if (!ob.cleared && ob.clearUntil && ob.clearUntil.getTime() <= now.getTime()) {
+      ob.cleared = true;
+      const rw = 3 + ((ob.id * 7) % 4);
+      await db.obstacle.update({ where: { id: ob.id }, data: { cleared: true } });
+      await db.village.update({ where: { id: v.id }, data: { war: { increment: rw } } });
+      await db.warLedger.create({
+        data: { userId: v.userId, delta: rw, reason: 'obstacle', refId: String(ob.id) },
+      });
+      v.war += rw;
+      stat.obst += 1;
+      statDirty = true;
+    }
+  }
+
   // 2. training queue (sequential; speed = non-busy barracks count)
   if (v.trainJobs.length) {
     const spd = barracksSpeed(v.buildings, now);

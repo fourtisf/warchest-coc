@@ -17,12 +17,14 @@ import {
   G,
   MAX_BUILDERS,
   armyCap,
+  clearingObstacles,
   countOf,
   freeBuilders,
   housingUsed,
   jobOf,
   keepLv,
   maxBarracksLv,
+  nowMs,
 } from '../state';
 import {
   canUpgrade,
@@ -202,13 +204,22 @@ export function renderSheet(): void {
     }
     $('sheetTitle').textContent = ob.kind === 'tree' ? '🌳 Tree' : '🪨 Rock';
     $('sheetSub').textContent = '';
-    body.innerHTML = `<div class="meta" style="color:var(--dim)">Clearing obstacles tidies the camp — and sometimes shakes loose a little $WAR.</div>
-      <button class="btn" style="width:100%;margin-top:12px" data-act="clear" data-arg="${ob.id}">Clear ${costHTML('g', ob.kind === 'tree' ? 80 : 60)}</button>`;
+    const clearing = ob.clearUntil !== undefined && ob.clearUntil > nowMs();
+    if (clearing) {
+      const tLeft = (ob.clearUntil! - nowMs()) / 1000;
+      const total = ob.clearTotalS ?? Math.max(1, tLeft);
+      body.innerHTML = `<div class="meta" style="color:var(--dim)">A builder is clearing this — the $WAR pops out when they're done.</div>
+        <div class="row" style="margin-top:12px"><div class="capBar"><i style="width:${(1 - tLeft / total) * 100}%;background:linear-gradient(90deg,#c98a12,var(--gold2))"></i></div>
+        <b style="font-size:12px;min-width:44px;text-align:right">${tstr(tLeft)}</b></div>`;
+    } else {
+      body.innerHTML = `<div class="meta" style="color:var(--dim)">Clearing obstacles tidies the camp — and sometimes shakes loose a little $WAR. Takes a builder a moment.</div>
+        <button class="btn" style="width:100%;margin-top:12px" data-act="clear" data-arg="${ob.id}">Clear ${costHTML('g', ob.kind === 'tree' ? 80 : 60)}</button>`;
+    }
   } else if (SHEET.kind === 'jobs') {
     $('sheetTitle').textContent = '🔨 Builders';
     $('sheetSub').textContent = freeBuilders() + ' of ' + G.buildersTotal + ' available';
     let h = '';
-    if (!G.jobs.length)
+    if (!G.jobs.length && !clearingObstacles().length)
       h = '<div class="meta" style="color:var(--dim);padding:8px 0">All builders are resting. Start an upgrade!</div>';
     for (const j of G.jobs) {
       const b = G.buildings.find((x) => x.id === j.bid);
@@ -220,6 +231,14 @@ export function renderSheet(): void {
         <div class="capBar" style="margin-top:5px"><i style="width:${(1 - j.tLeft / j.total) * 100}%;background:linear-gradient(90deg,#c98a12,var(--gold2))"></i></div></div>
         <b style="font-size:12px">${tstr(j.tLeft)}</b>
         <button class="btn war" data-act="fin" data-arg="${b.id}">◆${fin}</button></div>`;
+    }
+    for (const o of clearingObstacles()) {
+      const tLeft = (o.clearUntil! - nowMs()) / 1000;
+      const total = o.clearTotalS ?? Math.max(1, tLeft);
+      h += `<div class="row" style="padding:9px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+        <span style="font-size:18px">${o.kind === 'tree' ? '🌳' : '🪨'}</span><div style="flex:1"><b style="font-size:13px">Clearing ${o.kind}</b>
+        <div class="capBar" style="margin-top:5px"><i style="width:${(1 - tLeft / total) * 100}%;background:linear-gradient(90deg,#c98a12,var(--gold2))"></i></div></div>
+        <b style="font-size:12px">${tstr(tLeft)}</b></div>`;
     }
     if (G.buildersTotal < MAX_BUILDERS)
       h += `<div class="meta" style="margin-top:10px;color:var(--dim)">Need more hands? Buy a Builder Hut in the Shop (◆200).</div>`;

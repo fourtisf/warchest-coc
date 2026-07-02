@@ -1,17 +1,66 @@
 /** Main renderer — ported verbatim from the prototype's render(). */
-import { BUILD, TROOP, TROOP_ORDER, mulberry32, type TroopType } from '@warchest/game-core';
+import { BUILD, TROOP, TROOP_ORDER, mulberry32, tstr, type TroopType } from '@warchest/game-core';
 import { ART } from './art/buildings';
 import type { DrawableBuilding, DrawableUnit } from './art/drawable';
-import { I, hpBar } from './art/helpers';
+import { I, bShadow, hpBar, pad, prism, woodPost } from './art/helpers';
 import { OBST_ART } from './art/obstacles';
 import { drawProj } from './art/projectiles';
 import { drawUnit } from './art/units';
 import { CAM, VP, ctx2d, view, w2s } from './camera';
 import { $ } from './dom';
 import { FX } from './fx';
-import { G, jobOf } from './state';
+import { G, jobOf, nowMs, type VillageBuilding } from './state';
 import { canPlaceVillage } from './systems';
 import { groundOrThrow } from './world';
+
+function jobTimeText(c: CanvasRenderingContext2D, x: number, y: number, secs: number): void {
+  c.font = '700 11px Rubik,sans-serif';
+  c.textAlign = 'center';
+  const txt = tstr(Math.max(0, secs));
+  c.lineWidth = 3;
+  c.strokeStyle = 'rgba(0,0,0,.65)';
+  c.strokeText(txt, x, y);
+  c.fillStyle = '#ffd977';
+  c.fillText(txt, x, y);
+}
+
+function workerHammer(c: CanvasRenderingContext2D, x: number, y: number, t: number): void {
+  const sw = Math.sin(t * 7) * 0.6;
+  c.save();
+  c.translate(x, y);
+  c.rotate(-0.6 + sw);
+  c.fillStyle = '#8a8f9a';
+  c.fillRect(-2.4, -11, 4.8, 7);
+  c.strokeStyle = '#5a4632';
+  c.lineWidth = 2.2;
+  c.beginPath();
+  c.moveTo(0, -4);
+  c.lineTo(0, 9);
+  c.stroke();
+  c.restore();
+}
+
+/** CoC-style construction site drawn instead of the finished art while a NEW building is going up. */
+function drawConstructionSite(c: CanvasRenderingContext2D, b: DrawableBuilding, s: number, t: number): void {
+  bShadow(c, b, s);
+  pad(c, b, s, 'dirt');
+  prism(c, b.gx + 0.25, b.gy + 0.25, s - 0.5, s - 0.5, 6, '#c2a76e', '#8f7a4b', '#a8905c');
+  // corner scaffold posts + beams
+  const corners: Array<[number, number]> = [
+    [0.3, 0.3], [s - 0.3, 0.3], [0.3, s - 0.3], [s - 0.3, s - 0.3],
+  ];
+  for (const [dx, dy] of corners) {
+    const p = I(b.gx + dx, b.gy + dy);
+    woodPost(c, p.x, p.y - 4, p.x, p.y - 26, 3);
+  }
+  const a = I(b.gx + 0.3, b.gy + 0.3), b2 = I(b.gx + s - 0.3, b.gy + 0.3), d = I(b.gx + 0.3, b.gy + s - 0.3);
+  woodPost(c, a.x, a.y - 24, b2.x, b2.y - 24, 2.2);
+  woodPost(c, a.x, a.y - 24, d.x, d.y - 24, 2.2);
+  // plank pile + swinging hammer
+  prism(c, b.gx + s / 2 - 0.35, b.gy + s / 2 - 0.2, 0.7, 0.45, 4, '#c2925a', '#7d5a30', '#a3773f');
+  const hp = I(b.gx + s / 2, b.gy + s / 2);
+  workerHammer(c, hp.x + 9, hp.y - 16, t);
+}
 
 function drawSel(c: CanvasRenderingContext2D, b: DrawableBuilding): void {
   const s = BUILD[b.type].s;
@@ -131,17 +180,22 @@ export function render(): void {
   for (const it of items) {
     if (it.k === 'b') {
       const b = it.o;
-      ART[b.type](ctx, b, G.t);
       const s = BUILD[b.type].s, cx = b.gx + s / 2;
+      const job = !inBattle ? jobOf(b.id) : undefined;
+      const underConstruction = job && (b as VillageBuilding).jobKind === 'new';
+      if (underConstruction) drawConstructionSite(ctx, b, s, G.t);
+      else ART[b.type](ctx, b, G.t);
       if (!inBattle) {
-        const job = jobOf(b.id);
         if (job) {
           const p = I(cx, b.gy + s / 2);
-          const top = p.y - (b.type === 'keep' ? 120 : b.type === 'arrow' ? 96 : b.type === 'wall' ? 34 : 70);
+          const top = underConstruction
+            ? p.y - 46
+            : p.y - (b.type === 'keep' ? 120 : b.type === 'arrow' ? 96 : b.type === 'wall' ? 34 : 70);
           hpBar(ctx, p.x, top, 34, 1 - job.tLeft / job.total, '#f2b430');
           ctx.font = '11px sans-serif';
           ctx.textAlign = 'center';
-          ctx.fillText('🔨', p.x, top - 4);
+          ctx.fillText('🔨', p.x, top - 6);
+          jobTimeText(ctx, p.x, top + 16, job.tLeft);
         }
       } else if (b.hp !== undefined && b.maxhp !== undefined && b.hp < b.maxhp) {
         const p = I(cx, b.gy + s / 2);
@@ -151,8 +205,19 @@ export function render(): void {
           30, b.hp / b.maxhp,
         );
       }
-    } else if (it.k === 'o') OBST_ART[it.o.kind](ctx, it.o, G.t);
-    else drawUnit(ctx, it.o, G.t);
+    } else if (it.k === 'o') {
+      OBST_ART[it.o.kind](ctx, it.o, G.t);
+      const ob = it.o;
+      if (ob.clearUntil !== undefined && ob.clearTotalS) {
+        const tLeft = (ob.clearUntil - nowMs()) / 1000;
+        if (tLeft > 0) {
+          const p = I(ob.gx + 0.5, ob.gy + 0.5);
+          hpBar(ctx, p.x, p.y - 46, 30, 1 - tLeft / ob.clearTotalS, '#f2b430');
+          workerHammer(ctx, p.x + 12, p.y - 12, G.t);
+          jobTimeText(ctx, p.x, p.y - 52, tLeft);
+        }
+      }
+    } else drawUnit(ctx, it.o, G.t);
   }
   if (inBattle && G.battle) for (const p of G.battle.sim.projs) drawProj(ctx, p);
   if (G.mode === 'placing') drawGhost(ctx);

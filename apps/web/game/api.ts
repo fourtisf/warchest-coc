@@ -13,7 +13,9 @@ import {
   type SimBuilding,
   type TroopType,
 } from '@warchest/game-core';
-import { G, rebuildOcc, type VillageBuilding } from './state';
+import { FX } from './fx';
+import { SFX } from './sfx';
+import { clock, G, rebuildOcc, type VillageBuilding } from './state';
 import { toast } from './ui/toasts';
 
 const BASE = '/api';
@@ -39,7 +41,10 @@ export interface ServerVillage {
     id: number; type: BuildingType; level: number; gx: number; gy: number;
     stored: number; busyUntil: number | null; jobKind: 'new' | 'up' | null; jobTotalS: number | null;
   }>;
-  obstacles: Array<{ id: number; kind: 'tree' | 'rock'; gx: number; gy: number }>;
+  obstacles: Array<{
+    id: number; kind: 'tree' | 'rock'; gx: number; gy: number;
+    clearUntil: number | null; clearTotalS: number | null;
+  }>;
   army: ArmyCounts;
   trainQ: Array<{ id: number; type: TroopType; finishesAt: number | null; totalS: number }>;
   questDone: Record<string, boolean>;
@@ -80,6 +85,7 @@ async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Pr
 
 /** serverNow - Date.now(): add to local clocks when computing countdowns. */
 export let serverOffset = 0;
+
 export let serverConfig: ServerConfig = {
   domain: 'warchest.fun', timeScale: 1, prodAccel: 180, claimMin: 100, claimFeeBps: 500, claimDailyCap: 500,
 };
@@ -101,7 +107,19 @@ let lastQuestDone: Record<string, boolean> = {};
 /** Map a server village payload onto the local G render state. */
 export function hydrate(payload: ServerVillage): void {
   serverOffset = payload.serverNow - Date.now();
+  clock.offset = serverOffset;
   serverConfig = payload.config;
+  // obstacles that finished clearing since the last sync → reward pop
+  const hadState = G.buildings.length > 0;
+  const stillThere = new Set(payload.obstacles.map((o) => o.id));
+  for (const o of G.obstacles) {
+    if (o.clearUntil !== undefined && !stillThere.has(o.id) && hadState) {
+      const rw = 3 + ((o.id * 7) % 4);
+      FX.dust(o.gx + 0.5, o.gy + 0.5);
+      FX.float(o.gx + 0.5, o.gy + 0.5, '◆ +' + rw, '#3fe0a3');
+      SFX.play('done');
+    }
+  }
   G.res = { ...payload.res };
   G.trophies = payload.trophies;
   G.buildersTotal = payload.buildersTotal;
@@ -121,7 +139,14 @@ export function hydrate(payload: ServerVillage): void {
     jobKind: b.jobKind ?? undefined,
     jobTotalS: b.jobTotalS ?? undefined,
   }));
-  G.obstacles = payload.obstacles.map((o) => ({ id: o.id, kind: o.kind, gx: o.gx, gy: o.gy }));
+  G.obstacles = payload.obstacles.map((o) => ({
+    id: o.id,
+    kind: o.kind,
+    gx: o.gx,
+    gy: o.gy,
+    clearUntil: o.clearUntil ?? undefined,
+    clearTotalS: o.clearTotalS ?? undefined,
+  }));
   G.army = { ...payload.army };
   G.trainQ = payload.trainQ.map((j) => ({
     sid: j.id,

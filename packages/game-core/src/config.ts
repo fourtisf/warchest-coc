@@ -220,3 +220,9 @@ export const REAL_TRAIN_TIMES: Record<TroopType, number> = {
   bruiser: 120,
   gargoyle: 180,
 };
+
+/** Real obstacle-clearing times (a builder works on it), seconds. */
+export const REAL_CLEAR_TIMES: Record<'tree' | 'rock', number> = {
+  tree: 30,
+  rock: 20,
+};

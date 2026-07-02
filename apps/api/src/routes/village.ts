@@ -20,6 +20,7 @@ import {
   asType,
   barracksSpeed,
   buildSeconds,
+  clearSeconds,
   canPlaceVillage,
   capOf,
   housingUsed,
@@ -122,7 +123,7 @@ export function villageRoutes(app: FastifyInstance): void {
       if (!canPlaceVillage(v.buildings, v.obstacles, type, body.gx, body.gy))
         throw new RuleError('blocked', 'Cannot place there');
       const dur = buildSeconds(type, 1);
-      if (dur > 0 && activeJobs(v.buildings, now) >= v.buildersTotal)
+      if (dur > 0 && activeJobs(v.buildings, v.obstacles, now) >= v.buildersTotal)
         throw new RuleError('builders', 'All builders are busy');
       await payRes(v, B.res, B.lv[0]!.c, 'spend', `place:${type}`);
       const db = prisma();
@@ -166,7 +167,7 @@ export function villageRoutes(app: FastifyInstance): void {
     if (type !== 'keep' && b.level >= keepLv(v.buildings))
       throw new RuleError('keep', `Requires Keep Level ${b.level + 1}`);
     const dur = buildSeconds(type, b.level + 1);
-    if (dur > 0 && activeJobs(v.buildings, now) >= v.buildersTotal)
+    if (dur > 0 && activeJobs(v.buildings, v.obstacles, now) >= v.buildersTotal)
       throw new RuleError('builders', 'All builders are busy');
     await payRes(v, B.res, B.lv[b.level]!.c, 'spend', `upgrade:${type}:${b.level + 1}`);
     const db = prisma();
@@ -237,21 +238,20 @@ export function villageRoutes(app: FastifyInstance): void {
     await saveStat(v, stat);
   });
 
-  act('clear-obstacle', z.object({ obstacleId: z.number().int() }), async (v, body: { obstacleId: number }) => {
+  act('clear-obstacle', z.object({ obstacleId: z.number().int() }), async (v, body: { obstacleId: number }, now) => {
     const ob = v.obstacles.find((o) => o.id === body.obstacleId && !o.cleared);
     if (!ob) throw new RuleError('bad', 'No such obstacle');
+    if (ob.clearUntil && ob.clearUntil.getTime() > now.getTime())
+      throw new RuleError('busy', 'Already being cleared');
+    if (activeJobs(v.buildings, v.obstacles, now) >= v.buildersTotal)
+      throw new RuleError('builders', 'All builders are busy');
     const cost = ob.kind === 'tree' ? OBSTACLE_COST.tree : OBSTACLE_COST.rock;
     await payRes(v, 'g', cost, 'spend');
-    const db = prisma();
-    await db.obstacle.update({ where: { id: ob.id }, data: { cleared: true } });
-    const rw = 3 + ((ob.id * 7) % 4);
-    v.war += rw;
-    await db.village.update({ where: { id: v.id }, data: { war: v.war } });
-    await db.warLedger.create({
-      data: { userId: v.userId, delta: rw, reason: 'obstacle', refId: String(ob.id) },
+    const dur = clearSeconds(ob.kind as 'tree' | 'rock');
+    await prisma().obstacle.update({
+      where: { id: ob.id },
+      data: { clearUntil: new Date(now.getTime() + dur * 1000), clearTotalS: dur },
     });
-    const stat = statOf(v);
-    stat.obst += 1;
-    await saveStat(v, stat);
+    // the ◆ reward + stat land in materialize when the builder finishes
   });
 }

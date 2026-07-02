@@ -70,8 +70,10 @@ export function tickProduction(dt: number): void {
   }
 }
 
+let dustAcc = 0;
+
 /** Rebuild the jobs view from busyUntil stamps; request a sync when one completes. */
-export function tickJobs(): void {
+export function tickJobs(dt = 1 / 60): void {
   const now = nowMs();
   const jobs: typeof G.jobs = [];
   let completed = false;
@@ -86,7 +88,21 @@ export function tickJobs(): void {
     }
   }
   G.jobs = jobs;
+  // obstacle clears finishing also need a server sync
+  for (const o of G.obstacles)
+    if (o.clearUntil !== undefined && o.clearUntil <= now) completed = true;
   if (completed) markDirty();
+  // construction dust on active work sites, CoC-style
+  dustAcc += dt;
+  if (dustAcc > 1.4) {
+    dustAcc = 0;
+    for (const j of jobs) {
+      const b = G.buildings.find((x) => x.id === j.bid);
+      if (b) FX.dust(b.gx + BUILD[b.type].s / 2, b.gy + BUILD[b.type].s / 2);
+    }
+    for (const o of G.obstacles)
+      if (o.clearUntil !== undefined && o.clearUntil > now) FX.hit(o.gx + 0.5, o.gy + 0.5);
+  }
 }
 
 export function tickTraining(dt: number): void {
@@ -307,14 +323,12 @@ export function clearObstacle(ob: Obstacle): void {
     return;
   }
   void (async () => {
-    const beforeW = G.res.w;
     if (!(await withVillage(api.clearObstacle(ob.id)))) {
       SFX.play('err');
       return;
     }
-    const rw = G.res.w - beforeW;
+    // a builder walks over and starts working — the ◆ pops when they finish
     FX.dust(ob.gx + 0.5, ob.gy + 0.5);
-    if (rw > 0) FX.float(ob.gx + 0.5, ob.gy + 0.5, '◆ +' + rw, '#3fe0a3');
     SFX.play('build');
     G.sel = null;
     closeSheet();
