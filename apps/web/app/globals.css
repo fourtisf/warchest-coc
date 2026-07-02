@@ -103,8 +103,29 @@ body {
   font-size: 15px;
 }
 
+.landing .xlink {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 36px;
+  padding: 11px 22px;
+  border: 1px solid rgba(240, 180, 80, 0.28);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--txt);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.landing .xlink:hover {
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+
 .landing .fine {
-  margin-top: 40px;
+  margin-top: 22px;
   font-size: 12px;
   color: var(--dim);
   opacity: 0.7;
