@@ -18,6 +18,8 @@ function loadEnv(file) {
 }
 
 const ENV = loadEnv('/var/www/warchest/.env');
+// PORT in .env belongs to the API — it must never leak into the web process
+const { PORT: _apiPort, ...WEB_ENV } = ENV;
 
 module.exports = {
   apps: [
@@ -26,7 +28,7 @@ module.exports = {
       cwd: '/var/www/warchest/apps/web',
       script: 'node_modules/next/dist/bin/next',
       args: 'start -p 3000 -H 127.0.0.1',
-      env: { NODE_ENV: 'production', ...ENV },
+      env: { NODE_ENV: 'production', PORT: '3000', ...WEB_ENV },
       max_memory_restart: '512M',
       autorestart: true,
     },

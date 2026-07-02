@@ -155,13 +155,17 @@ curl -fsS http://127.0.0.1:8787/api/health >/dev/null && ok "api responding on :
 log "Installing nginx site for $DOMAIN (deterministic 80+443 config)"
 mkdir -p /var/www/letsencrypt
 
-# kill remnants: any other enabled site or conf.d entry claiming this domain
+# Single-purpose VPS: OUR vhost must be the only one. Disable every other
+# enabled site / conf.d entry that defines a server (moved aside, not deleted —
+# recover from /root/nginx-disabled-configs if ever needed).
+DISABLED_DIR=/root/nginx-disabled-configs
 for f in /etc/nginx/sites-enabled/* /etc/nginx/conf.d/*.conf; do
   [ -e "$f" ] || continue
   [ "$(readlink -f "$f")" = "/etc/nginx/sites-available/$DOMAIN" ] && continue
-  if grep -q "server_name .*$DOMAIN" "$f" 2>/dev/null; then
-    echo "  removing stale nginx config: $f"
-    rm -f "$f"
+  if grep -Eq '^\s*(listen|server_name)\b' "$f" 2>/dev/null; then
+    mkdir -p "$DISABLED_DIR"
+    echo "  disabling other vhost: $f"
+    mv "$f" "$DISABLED_DIR/$(basename "$f").$(date +%s)"
   fi
 done
 [ -L /etc/nginx/sites-enabled/default ] && rm -f /etc/nginx/sites-enabled/default
@@ -236,7 +240,7 @@ CONF
 
 write_http_only
 ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
-nginx -t && systemctl reload nginx
+nginx -t && systemctl restart nginx
 ok "nginx serving $DOMAIN on :80"
 
 if [ ! -d "/etc/letsencrypt/live/$DOMAIN" ]; then
@@ -250,21 +254,29 @@ if [ -d "/etc/letsencrypt/live/$DOMAIN" ]; then
   # http2 directive needs nginx ≥1.25; fall back for older versions
   nginx -t 2>/dev/null || sed -i 's/^    http2 on;/    # http2 on;/; s/listen 443 ssl;/listen 443 ssl http2;/; s/listen \[::\]:443 ssl;/listen [::]:443 ssl http2;/' "/etc/nginx/sites-available/$DOMAIN"
   nginx -t
-  systemctl reload nginx
+  systemctl restart nginx
+  sleep 2
   ok "TLS active — https://$DOMAIN"
 fi
 
 # --------------------------------------------------------- 7. routing check
 log "Verifying routing end-to-end"
-ROOT_CT=$(curl -sk -o /dev/null -w '%{content_type}' -H "Host: $DOMAIN" https://127.0.0.1/ 2>/dev/null \
-  || curl -s -o /dev/null -w '%{content_type}' -H "Host: $DOMAIN" http://127.0.0.1/)
-API_OK=$(curl -sk -H "Host: $DOMAIN" https://127.0.0.1/api/health 2>/dev/null \
-  || curl -s -H "Host: $DOMAIN" http://127.0.0.1/api/health)
+# --resolve gives correct SNI + Host, exactly like a real browser
+ROOT_CT=$(curl -sk -o /dev/null -w '%{content_type}' --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/" 2>/dev/null)
+[ -n "$ROOT_CT" ] || ROOT_CT=$(curl -s -o /dev/null -w '%{content_type}' --resolve "$DOMAIN:80:127.0.0.1" "http://$DOMAIN/")
+API_OK=$(curl -sk --resolve "$DOMAIN:443:127.0.0.1" "https://$DOMAIN/api/health" 2>/dev/null)
+[ -n "$API_OK" ] || API_OK=$(curl -s --resolve "$DOMAIN:80:127.0.0.1" "http://$DOMAIN/api/health")
 echo "  / content-type : $ROOT_CT (expect text/html)"
 echo "  /api/health    : $API_OK"
 case "$ROOT_CT" in
   text/html*) ok "routing correct: / → web, /api → api" ;;
-  *) echo "⚠ / is NOT serving the web app — inspect: nginx -T | grep -A5 'server_name $DOMAIN'"; exit 1 ;;
+  *)
+    echo "⚠ / is NOT serving the web app. Loaded server blocks:"
+    nginx -T 2>/dev/null | awk '/^# configuration file/{f=$4} /^\s*(listen|server_name|proxy_pass|location)/{printf "  %-55s %s\n", f":", $0}' | head -50
+    echo "  what answers :3000 → $(curl -s -o /dev/null -w '%{content_type}' http://127.0.0.1:3000/)"
+    echo "  what answers :8787 → $(curl -s -o /dev/null -w '%{content_type}' http://127.0.0.1:8787/api/health)"
+    exit 1
+    ;;
 esac
 
 echo
