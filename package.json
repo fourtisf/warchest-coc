@@ -1,0 +1,16 @@
+{
+  "name": "warchest",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WARCHEST — Build. Raid. Earn. COC-style base builder + raid game with a $WAR token economy on Solana.",
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm --filter @warchest/web dev",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck"
+  }
+}
