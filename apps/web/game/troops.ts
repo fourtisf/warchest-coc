@@ -27,16 +27,15 @@ let firstSync = true;
 const IDLE_CAP = 12; // per type, as in the prototype
 
 /**
- * Camp-relative idle spots, chosen around the art: fire pit at (2,2), red
- * tent (0.45,2.25)-(1.75,3.4), blue tent (2.3,0.5)-(3.6,1.65). Ring seats
- * around the fire first, then the two free corners — nobody stands in the
- * flames or inside a tent.
+ * Camp-relative idle spots. The tents GROW with camp level (red toward the
+ * south-west, blue toward the north-east), so every seat lives in the fire
+ * ring and the open south/east ground — never inside a tent at any level,
+ * and always in FRONT of the camp sprite so units are never hidden by it.
  */
 const CAMP_SLOTS: ReadonlyArray<readonly [number, number]> = [
-  [0.95, 2.0], [3.1, 2.1], [2.1, 3.2], [2.0, 0.9],
-  [0.8, 0.85], [1.65, 0.55], [0.55, 1.55],
-  [3.3, 2.8], [2.8, 3.35], [3.5, 3.5],
-  [1.35, 1.3], [2.9, 2.9],
+  [2.05, 0.95], [3.1, 2.1], [2.1, 3.15], [1.85, 2.85],
+  [2.85, 1.85], [3.35, 2.8], [2.8, 3.35], [2.35, 3.5],
+  [2.2, 2.75], [2.55, 2.5], [3.5, 3.5], [3.5, 2.35],
 ];
 
 function camps(): Array<{ gx: number; gy: number }> {

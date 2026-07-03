@@ -200,8 +200,15 @@ export function villageRoutes(app: FastifyInstance): void {
       throw new RuleError('bad', 'Nothing to finish');
     const remaining = (b.busyUntil.getTime() - now.getTime()) / 1000;
     const cost = finishNowCostReal(remaining);
+    if (v.war < cost) throw new RuleError('poor', 'Not enough $WAR');
+    // atomic claim: a double-tap fires two parallel requests — only the one
+    // that flips busyUntil pays; the loser is a silent no-op, never a 2nd charge
+    const claimed = await prisma().building.updateMany({
+      where: { id: b.id, villageId: v.id, busyUntil: { gt: now } },
+      data: { busyUntil: now },
+    });
+    if (claimed.count === 0) return;
     await payRes(v, 'w', cost, 'spend', `finish:${b.id}`);
-    await prisma().building.update({ where: { id: b.id }, data: { busyUntil: now } });
   });
 
   act('train', z.object({ troop: z.string() }), async (v, body: { troop: string }, now) => {

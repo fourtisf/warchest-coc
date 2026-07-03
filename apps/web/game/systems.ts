@@ -39,7 +39,7 @@ import {
   type VillageBuilding,
 } from './state';
 import { renderHUD } from './ui/hud';
-import { closeSheet, refreshSheet } from './ui/sheet';
+import { closeSheet, openSheet, refreshSheet } from './ui/sheet';
 import { toast } from './ui/toasts';
 
 /** set when a local countdown crosses zero → the main loop pulls /me once */
@@ -124,7 +124,22 @@ export function tickTraining(dt: number): void {
 export function collect(b: VillageBuilding): void {
   void (async () => {
     const before = { g: G.res.g, m: G.res.m };
-    if (!(await withVillage(api.collect(b.id)))) return;
+    const ok = await withVillage(api.collect(b.id), (e) => {
+      if (e.message !== 'Storage is full') return;
+      // guide the player straight to the fix: upgrade (or add) storage
+      const key: BuildingType = b.type === 'mine' ? 'vault' : 'tank';
+      const canAddMore = countOf(key) < (BUILD[key].max[keepLv() - 1] ?? 0);
+      toast(
+        `${b.type === 'mine' ? '🪙 Gold' : '🔮 Mana'} storage is full — upgrade your ${BUILD[key].n}${canAddMore ? ' or build another in the Shop' : ''}!`,
+        'warn',
+      );
+      const store = G.buildings.find((x) => x.type === key && !x.busy) ?? G.buildings.find((x) => x.type === key);
+      if (store) {
+        G.sel = store.id;
+        openSheet('info', store.id);
+      } else openSheet('shop');
+    });
+    if (!ok) return;
     const r = b.type === 'mine' ? 'g' : 'm';
     const got = G.res[r] - before[r];
     if (got <= 0) return;
@@ -323,14 +338,21 @@ export function startUpgrade(b: VillageBuilding): void {
   })();
 }
 
+let finishInFlight = false;
 export function finishNow(bid: number): void {
+  if (finishInFlight) return; // one tap = one request; rapid taps are ignored
+  finishInFlight = true;
   void (async () => {
-    if (await withVillage(api.finishNow(bid))) {
-      SFX.play('done');
-      renderHUD();
-      refreshSheet();
-      updateQuestBadge();
-    } else SFX.play('err');
+    try {
+      if (await withVillage(api.finishNow(bid))) {
+        SFX.play('done');
+        renderHUD();
+        refreshSheet();
+        updateQuestBadge();
+      } else SFX.play('err');
+    } finally {
+      finishInFlight = false;
+    }
   })();
 }
 

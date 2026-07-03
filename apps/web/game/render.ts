@@ -1,6 +1,6 @@
 /** Main renderer — ported verbatim from the prototype's render(). */
 import {
-  BUILD, SPELL, TH, TICKS_PER_SEC, TROOP, TROOP_ORDER, TW, mulberry32, tstr, type TroopType,
+  BUILD, MAP, SPELL, TH, TICKS_PER_SEC, TROOP, TROOP_ORDER, TW, mulberry32, tstr, type TroopType,
 } from '@warchest/game-core';
 import { ART } from './art/buildings';
 import type { DrawableBuilding, DrawableUnit } from './art/drawable';
@@ -11,7 +11,7 @@ import { drawUnit } from './art/units';
 import { CAM, VP, ctx2d, view, w2s } from './camera';
 import { $ } from './dom';
 import { FX } from './fx';
-import { G, jobOf, nowMs, type VillageBuilding } from './state';
+import { G, jobOf, nowMs, OCC, type VillageBuilding } from './state';
 import { villageUnits } from './troops';
 import { canPlaceVillage } from './systems';
 import { groundOrThrow } from './world';
@@ -170,7 +170,17 @@ export function render(): void {
   const units: ReadonlyArray<DrawableUnit> = inBattle && G.battle ? G.battle.sim.troops : villageUnits();
   for (const u of units) {
     if (u.dead) continue;
-    items.push({ k: 'u', o: u, z: u.x + u.y + (TROOP[u.type as TroopType].fly ? 3 : 0) });
+    let z = u.x + u.y + (TROOP[u.type as TroopType].fly ? 3 : 0);
+    if (!inBattle) {
+      // units idling inside a camp draw in FRONT of it, never under a tent
+      const gx = Math.floor(u.x), gy = Math.floor(u.y);
+      const id = gx >= 0 && gy >= 0 && gx < MAP && gy < MAP ? (OCC[gy * MAP + gx] ?? 0) : 0;
+      if (id > 0) {
+        const host = G.buildings.find((x) => x.id === id);
+        if (host && host.type === 'camp') z = host.gx + host.gy + 4.02 + (u.x + u.y) * 0.001;
+      }
+    }
+    items.push({ k: 'u', o: u, z });
   }
   items.sort((a, b) => a.z - b.z);
   for (const it of items) {
