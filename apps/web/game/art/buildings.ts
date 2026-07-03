@@ -257,7 +257,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const fill = clamp((b.stored ?? 0) / BUILD.mine.lv[b.level - 1]!.cap!, 0, 1);
     for (let i = 0; i < Math.ceil(fill * 6); i++)
       coin(c, cartX - 4 + (i % 3) * 4.5, cartY - 9 - Math.floor(i / 3) * 4, 2.8);
-    if (fill >= 0.25) {
+    if (fill >= 0.1) {
       const bo = Math.sin(t * 4) * 3;
       c.fillStyle = 'rgba(20,26,38,.72)';
       c.beginPath();
@@ -397,7 +397,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
       c.arc(pc.x + Math.cos(a2) * 13, pc.y - 12 + Math.sin(a2) * 4 - i * 2, 2.4, 0, 7);
       c.fill();
     }
-    if (fill >= 0.25) {
+    if (fill >= 0.1) {
       const bo = Math.sin(t * 4 + 1) * 3;
       c.fillStyle = 'rgba(20,26,38,.72)';
       c.beginPath();
