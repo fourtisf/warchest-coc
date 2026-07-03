@@ -16,9 +16,9 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const s = 4;
     const lv = b.level;
     // the castle physically grows: walls, turrets and crown tower rise per level
-    const W = 44 + (lv - 1) * 3.5;
-    const TU = 58 + (lv - 1) * 5;
-    const cone = 13 + (lv - 1) * 0.8;
+    const W = 44 + (lv - 1) * 6;
+    const TU = 58 + (lv - 1) * 8;
+    const cone = 13 + (lv - 1) * 1.4;
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
     prism(c, b.gx + 0.35, b.gy + 0.35, 3.3, 3.3, 10, '#cfc8b6', '#8f8674', '#b0a794');
@@ -140,12 +140,12 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const lv = b.level;
     // the dig gets deeper and the headframe taller every level
     const mg = lv - 1;
-    const mtop = 15 + mg * 2;
-    const wr = 10 + mg * 0.7;
+    const mtop = 15 + mg * 4;
+    const wr = 10 + mg * 1.3;
     bShadow(c, b, s);
     pad(c, b, s);
-    prism(c, b.gx + 0.35, b.gy + 0.35, 2.3, 2.3, 8 + mg, '#c2a76e', '#8f7a4b', '#a8905c');
-    prism(c, b.gx + 0.68, b.gy + 0.68, 1.64, 1.64, 7 + mg, '#cdb27a', '#96814f', '#b39a63', 8 + mg, false);
+    prism(c, b.gx + 0.35 - mg * 0.04, b.gy + 0.35 - mg * 0.04, 2.3 + mg * 0.08, 2.3 + mg * 0.08, 8 + mg * 2, '#c2a76e', '#8f7a4b', '#a8905c');
+    prism(c, b.gx + 0.68 - mg * 0.03, b.gy + 0.68 - mg * 0.03, 1.64 + mg * 0.06, 1.64 + mg * 0.06, 7 + mg * 2, '#cdb27a', '#96814f', '#b39a63', 8 + mg * 2, false);
     const hc = I(b.gx + 1.5, b.gy + 1.5);
     if (lv >= 2) {
       // exposed gold veins in the mound — richer dig, richer look
@@ -161,7 +161,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const bl = I(b.gx + 1.02, b.gy + 1.98), br = I(b.gx + 1.98, b.gy + 1.02);
     bl.y -= mtop;
     br.y -= mtop;
-    const ap = { x: hc.x, y: hc.y - mtop - 36 - mg * 4 };
+    const ap = { x: hc.x, y: hc.y - mtop - 36 - mg * 7 };
     woodPost(c, bl.x, bl.y, ap.x, ap.y + 6, 4.5);
     woodPost(c, br.x, br.y, ap.x, ap.y + 6, 4.5);
     woodPost(c, bl.x + 4, bl.y - 14, br.x - 4, br.y - 14, 3.2);
@@ -274,7 +274,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const s = 3;
     const lv = b.level;
     // the basin rises and the mana pool sits higher every level
-    const BH = 9 + (lv - 1) * 2;
+    const BH = 9 + (lv - 1) * 3.5;
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
     prism(c, b.gx + 0.45, b.gy + 0.45, 2.1, 2.1, BH, '#b6bcc9', '#6d7383', '#929aa9');
@@ -296,10 +296,10 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     }
     if (lv >= 2) {
       // mana crystals sprout from the basin corners as the well deepens
-      const clusters: Array<{ p: { x: number; y: number }; sc: number }> = [{ p: P3, sc: 1 }];
-      if (lv >= 3) clusters.push({ p: P2, sc: 1.25 });
-      if (lv >= 4) clusters.push({ p: P4, sc: 1.5 });
-      if (lv >= 5) clusters.push({ p: P1, sc: 2.1 }); // hero crystal on the far corner
+      const clusters: Array<{ p: { x: number; y: number }; sc: number }> = [{ p: P3, sc: 1.3 }];
+      if (lv >= 3) clusters.push({ p: P2, sc: 1.7 });
+      if (lv >= 4) clusters.push({ p: P4, sc: 2.2 });
+      if (lv >= 5) clusters.push({ p: P1, sc: 2.8 }); // hero crystal on the far corner
       for (const { p, sc } of clusters) {
         for (const [dx, h2, w2] of [[-3, 13, 3.4], [3, 9, 2.8]] as const) {
           c.fillStyle = '#b06ee0';
@@ -422,14 +422,14 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const lv = b.level;
     // the war chest itself grows with every level
     const mg = lv - 1;
-    const CH = 22 + mg * 2.5;
+    const CH = 22 + mg * 4;
     const LH = CH + 9;
     bShadow(c, b, s);
     pad(c, b, s);
-    const B1 = prism(c, b.gx + 0.5 - mg * 0.025, b.gy + 0.8 - mg * 0.02, 2.0 + mg * 0.05, 1.5 + mg * 0.04, CH, lv >= 4 ? '#a8792f' : '#c98f3e', lv >= 4 ? '#654a1c' : '#7d5a24', lv >= 4 ? '#8a6226' : '#a3742f');
+    const B1 = prism(c, b.gx + 0.5 - mg * 0.045, b.gy + 0.8 - mg * 0.035, 2.0 + mg * 0.09, 1.5 + mg * 0.07, CH, lv >= 4 ? '#a8792f' : '#c98f3e', lv >= 4 ? '#654a1c' : '#7d5a24', lv >= 4 ? '#8a6226' : '#a3742f');
     faceLines(c, B1.f, B1.F, B1.e, B1.E, 5, 'rgba(0,0,0,.13)', 1.1);
-    prism(c, b.gx + 0.42 - mg * 0.025, b.gy + 0.72 - mg * 0.02, 2.16 + mg * 0.05, 1.66 + mg * 0.04, 9, '#d9a34a', '#8a642a', '#b8853a', CH);
-    const tA = I(b.gx + 0.42 - mg * 0.025, b.gy + 0.72 - mg * 0.02), tB = I(b.gx + 2.58 + mg * 0.025, b.gy + 0.72 - mg * 0.02);
+    prism(c, b.gx + 0.42 - mg * 0.045, b.gy + 0.72 - mg * 0.035, 2.16 + mg * 0.09, 1.66 + mg * 0.07, 9, '#d9a34a', '#8a642a', '#b8853a', CH);
+    const tA = I(b.gx + 0.42 - mg * 0.045, b.gy + 0.72 - mg * 0.035), tB = I(b.gx + 2.58 + mg * 0.045, b.gy + 0.72 - mg * 0.035);
     c.strokeStyle = 'rgba(255,235,180,.55)';
     c.lineWidth = 2;
     c.beginPath();
@@ -501,7 +501,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const s = 3;
     const lv = b.level;
     // the reservoir tower rises with every level
-    const GH = 32 + (lv - 1) * 4;
+    const GH = 32 + (lv - 1) * 7;
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
     prism(c, b.gx + 0.62, b.gy + 0.62, 1.76, 1.76, 5, '#a97a44', '#6f4a22', '#8a5c2b');
@@ -604,12 +604,14 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const s = 3;
     const lv = b.level;
     const mg = lv - 1;
-    const barrelLen = 22 + mg * 1.8;
-    const BT = 8 + mg * 0.7;
-    const WR = 8.2 + mg * 0.6;
+    const barrelLen = 22 + mg * 2.6;
+    const BT = 8 + mg * 1.1;
+    const WR = 8.2 + mg * 1.1;
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
-    const PF = prism(c, b.gx + 0.55 - mg * 0.03, b.gy + 0.55 - mg * 0.03, 1.9 + mg * 0.06, 1.9 + mg * 0.06, 6 + mg, '#a97a44', '#6f4a22', '#8a5c2b');
+    const PF = lv >= 3
+      ? prism(c, b.gx + 0.55 - mg * 0.06, b.gy + 0.55 - mg * 0.06, 1.9 + mg * 0.12, 1.9 + mg * 0.12, 6 + mg * 1.6, '#b6bcc9', '#6d7383', '#929aa9')
+      : prism(c, b.gx + 0.55 - mg * 0.06, b.gy + 0.55 - mg * 0.06, 1.9 + mg * 0.12, 1.9 + mg * 0.12, 6 + mg * 1.6, '#a97a44', '#6f4a22', '#8a5c2b');
     faceLines(c, PF.f, PF.F, PF.e, PF.E, 4, 'rgba(0,0,0,.14)', 1.1);
     for (const w of [I(b.gx + 1.02, b.gy + 2.12), I(b.gx + 2.12, b.gy + 1.02)]) {
       c.fillStyle = '#6f4a22';
@@ -683,7 +685,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const s = 3;
     const lv = b.level;
     // the watchtower climbs with every level
-    const SHH = 34 + (lv - 1) * 6;
+    const SHH = 34 + (lv - 1) * 9;
     const TP = 20 + SHH;
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
@@ -787,7 +789,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
   mortar(c, b, _t) {
     const s = 3;
     const lv = b.level;
-    const R = 13.5 + (lv - 1) * 1.6;
+    const R = 13.5 + (lv - 1) * 2.4;
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
     for (const a2 of [0.4, 1.1, 1.9, 2.7, 3.5, 4.5]) {
@@ -804,7 +806,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
       c.lineTo(q.x + 5, q.y - 3);
       c.stroke();
     }
-    const dz = (lv - 1) * 2.5;
+    const dz = (lv - 1) * 3.5;
     const cp = I(b.gx + 1.5, b.gy + 1.5);
     if (lv >= 2) {
       // sandbag ring shoring up the pit
@@ -895,11 +897,13 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const s = 3;
     const lv = b.level;
     // the war hall rises with every level
-    const H = 20 + (lv - 1) * 3.5;
-    const RH = 20 + (lv - 1) * 1.5;
+    const H = 20 + (lv - 1) * 6;
+    const RH = 20 + (lv - 1) * 3;
     bShadow(c, b, s);
     pad(c, b, s);
-    const BD = prism(c, b.gx + 0.45, b.gy + 0.85, 2.1, 1.6, H, '#c2925a', '#7d5a30', '#a3773f');
+    const BD = lv >= 4
+      ? prism(c, b.gx + 0.45, b.gy + 0.85, 2.1, 1.6, H, '#cfc8b6', '#8f8674', '#b0a794')
+      : prism(c, b.gx + 0.45, b.gy + 0.85, 2.1, 1.6, H, '#c2925a', '#7d5a30', '#a3773f');
     faceLines(c, BD.f, BD.F, BD.e, BD.E, 5, 'rgba(0,0,0,.13)', 1);
     const M2 = lv >= 5
       ? roof(c, b.gx + 0.45, b.gy + 0.85, 2.1, 1.6, H, RH, '#e0b23a', '#a8781a', '#ffd977', 0.2)
@@ -1031,8 +1035,8 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     bShadow(c, b, s);
     pad(c, b, s, 'dirt');
     // tents grow OUTWARD each level (fire-facing edges stay put, seats stay clear)
-    const g = (lv - 1) * 0.07;
-    const th2 = 9 + (lv - 1) * 1.2, rh2 = 13 + (lv - 1) * 1.8;
+    const g = (lv - 1) * 0.1;
+    const th2 = 9 + (lv - 1) * 2, rh2 = 13 + (lv - 1) * 3;
     const T1 = prism(c, b.gx + 0.45 - g, b.gy + 2.25, 1.3 + g, 1.15 + g, th2, '#d9cdb0', '#96897b', '#b8ab90', 0, false);
     roof(c, b.gx + 0.45 - g, b.gy + 2.25, 1.3 + g, 1.15 + g, th2, rh2, lv >= 5 ? '#e0b23a' : '#c8402f', lv >= 5 ? '#a8781a' : '#a33325', lv >= 5 ? '#ffd977' : '#f07a5a', 0.12);
     const T2 = prism(c, b.gx + 2.3, b.gy + 0.5 - g, 1.3 + g, 1.15 + g, th2, '#d9cdb0', '#96897b', '#b8ab90', 0, false);
@@ -1122,7 +1126,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     c.lineTo(fp.x + 8, fp.y + 3);
     c.stroke();
     c.lineCap = 'butt';
-    flame(c, fp.x, fp.y - 5, t, 1.15 + (lv - 1) * 0.14);
+    flame(c, fp.x, fp.y - 5, t, 1.15 + (lv - 1) * 0.2);
     for (let i = 0; i < 2; i++) {
       const ph = (t * 0.4 + i * 0.5) % 1;
       c.fillStyle = 'rgba(150,150,150,' + (0.22 * (1 - ph)) + ')';

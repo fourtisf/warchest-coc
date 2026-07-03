@@ -186,7 +186,7 @@ export function render(): void {
           const p = I(cx, b.gy + s / 2);
           const top = underConstruction
             ? p.y - 46
-            : p.y - (b.type === 'keep' ? 120 : b.type === 'arrow' ? 96 : b.type === 'wall' ? 34 : 70);
+            : p.y - (b.type === 'keep' ? 150 : b.type === 'arrow' ? 122 : b.type === 'wall' ? 34 : 76);
           hpBar(ctx, p.x, top, 34, 1 - job.tLeft / job.total, '#f2b430');
           ctx.font = '11px sans-serif';
           ctx.textAlign = 'center';
@@ -207,7 +207,7 @@ export function render(): void {
         const p = I(cx, b.gy + s / 2);
         hpBar(
           ctx, p.x,
-          p.y - (b.type === 'keep' ? 126 : b.type === 'arrow' ? 102 : b.type === 'wall' ? 36 : 76),
+          p.y - (b.type === 'keep' ? 156 : b.type === 'arrow' ? 128 : b.type === 'wall' ? 36 : 82),
           30, b.hp / b.maxhp,
         );
       }
