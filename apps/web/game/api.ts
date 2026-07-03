@@ -130,6 +130,7 @@ export function hydrate(payload: ServerVillage): void {
   G.wallet = payload.user.wallet
     ? { addr: payload.user.wallet, short: payload.user.wallet.slice(0, 4) + '…' + payload.user.wallet.slice(-4) }
     : null;
+  const prevLv = new Map(G.buildings.map((b) => [b.id, b.level]));
   G.buildings = payload.buildings.map((b): VillageBuilding => ({
     id: b.id,
     type: b.type,
@@ -143,6 +144,17 @@ export function hydrate(payload: ServerVillage): void {
     jobKind: b.jobKind ?? undefined,
     jobTotalS: b.jobTotalS ?? undefined,
   }));
+  // upgrade finished since the last sync → celebrate the new model on the spot
+  if (hadState) {
+    for (const b of G.buildings) {
+      const old = prevLv.get(b.id);
+      if (old !== undefined && b.level > old) {
+        const s = BUILD[b.type].s;
+        FX.boom(b.gx + s / 2, b.gy + s / 2, 1.1);
+        FX.float(b.gx + s / 2, b.gy + s / 2 - 1, `⬆ ${BUILD[b.type].n} Lv ${b.level}!`, '#ffd977');
+      }
+    }
+  }
   G.obstacles = payload.obstacles.map((o) => ({
     id: o.id,
     kind: o.kind,
