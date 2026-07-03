@@ -7,6 +7,16 @@ const displayName = (name: string | null, wallet: string | null, id: string): st
   name ?? (wallet ? wallet.slice(0, 4) + '…' + wallet.slice(-4) : 'Chief-' + id.slice(-4));
 
 export function metaRoutes(app: FastifyInstance): void {
+  // public marketing stats for the landing page (no auth)
+  app.get('/stats', async () => {
+    const db = prisma();
+    const players = await db.village.count();
+    const online = await db.village.count({
+      where: { lastSeen: { gt: new Date(Date.now() - 3 * 60 * 1000) } },
+    });
+    return { players, online };
+  });
+
   app.get('/leaderboard', async (req) => {
     const user = await requireUser(req);
     const db = prisma();

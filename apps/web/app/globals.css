@@ -21,6 +21,7 @@ body {
 }
 
 .landing {
+  position: relative;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -28,10 +29,38 @@ body {
   justify-content: center;
   text-align: center;
   padding: 24px;
+  overflow: hidden;
+  background: #4f8a3e;
+}
+
+/* the game world: iso diamond grass checker, exactly the in-game palette */
+.landing::before {
+  content: '';
+  position: fixed;
+  left: -60%;
+  top: -100%;
+  width: 220%;
+  height: 300%;
+  background: conic-gradient(#7bb558 90deg, #74ad52 90deg 180deg, #7bb558 180deg 270deg, #74ad52 270deg) 0 0 / 128px 128px;
+  transform: scaleY(0.5) rotate(45deg);
+  z-index: 0;
+}
+
+/* readability veil: darker at the title and the foot, world visible in between */
+.landing::after {
+  content: '';
+  position: fixed;
+  inset: 0;
   background:
-    radial-gradient(1100px 500px at 50% -10%, rgba(242, 180, 48, 0.12), transparent 65%),
-    radial-gradient(900px 500px at 50% 110%, rgba(63, 224, 163, 0.08), transparent 60%),
-    #0a0e14;
+    radial-gradient(1100px 520px at 50% -8%, rgba(8, 13, 9, 0.78), transparent 60%),
+    linear-gradient(180deg, rgba(8, 13, 9, 0.62), rgba(8, 13, 9, 0.34) 42%, rgba(8, 13, 9, 0.66)),
+    radial-gradient(1000px 600px at 50% 115%, rgba(8, 13, 9, 0.7), transparent 55%);
+  z-index: 0;
+}
+
+.landing > * {
+  position: relative;
+  z-index: 1;
 }
 
 .landing .mark {
@@ -51,7 +80,8 @@ body {
 }
 
 .landing .tag {
-  color: var(--dim);
+  color: #cfe3c4;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
   letter-spacing: 0.35em;
   font-size: 13px;
   font-weight: 700;
@@ -76,6 +106,47 @@ body {
   box-shadow: 0 1px 0 #7d5406;
 }
 
+.landing .stats {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.landing .stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: rgba(10, 16, 11, 0.72);
+  border: 1px solid rgba(240, 180, 80, 0.3);
+  color: var(--gold2);
+  font-weight: 800;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.landing .stat-pill.live {
+  color: #7dffc9;
+  border-color: rgba(63, 224, 163, 0.35);
+}
+
+.landing .stat-pill.live i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #3fe0a3;
+  box-shadow: 0 0 8px #3fe0a3;
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.8); }
+}
+
 .landing .feats {
   display: flex;
   gap: 26px;
@@ -87,7 +158,7 @@ body {
 
 .landing .feat {
   flex: 1 1 180px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(10, 16, 11, 0.66);
   border: 1px solid rgba(240, 180, 80, 0.22);
   border-radius: 14px;
   padding: 16px;
@@ -115,10 +186,10 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  background: rgba(10, 16, 11, 0.66);
   padding: 11px 22px;
   border: 1px solid rgba(240, 180, 80, 0.28);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
   color: var(--txt);
   text-decoration: none;
   font-weight: 700;

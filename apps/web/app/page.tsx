@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import LiveStats from './live-stats';
 
 export default function Landing(): JSX.Element {
   return (
@@ -10,6 +11,7 @@ export default function Landing(): JSX.Element {
       <Link className="cta" href="/play" prefetch>
         ⚔️ Enter Village
       </Link>
+      <LiveStats />
       <div className="feats">
         <div className="feat">
           <b>🏰 Build your warcamp</b>
