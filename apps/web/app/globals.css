@@ -103,11 +103,18 @@ body {
   font-size: 15px;
 }
 
+.landing .links {
+  display: flex;
+  gap: 12px;
+  margin-top: 36px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
 .landing .xlink {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  margin-top: 36px;
   padding: 11px 22px;
   border: 1px solid rgba(240, 180, 80, 0.28);
   border-radius: 999px;
