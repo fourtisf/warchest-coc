@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import LiveStats from './live-stats';
+import VillageBackdrop from './village-backdrop';
 
 export default function Landing(): JSX.Element {
   return (
     <main className="landing">
+      <VillageBackdrop />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img className="mark" src="/logo.svg" alt="WARCHEST" width={132} height={132} />
       <h1 className="logo">WARCHEST</h1>
