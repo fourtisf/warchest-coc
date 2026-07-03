@@ -297,9 +297,14 @@ export const BASE_CAP = 1200;
 export const BATTLE_TIME = 180;
 export const NEXT_COST = 50;
 
-/** Obstacle clear costs (gold) and starting resources — eased for the CoC-style early game. */
+/**
+ * Obstacle clear costs (gold) and starting resources. The starting stash is
+ * deliberately rich (owner-directed): enough to take EVERY building to L3
+ * (~17.8k gold + ~10.4k mana incl. the Keep-2/3 unlocks) — the grind begins
+ * at L4+, funded by raids.
+ */
 export const OBSTACLE_COST = { tree: 40, rock: 30 } as const;
-export const START_RES = { g: 800, m: 800, w: 40 } as const;
+export const START_RES = { g: 20000, m: 12000, w: 40 } as const;
 export const START_TROPHIES = 10;
 export const MAX_BUILDERS = 3;
 export const START_BUILDERS = 2;

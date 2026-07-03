@@ -95,9 +95,12 @@ export function villageRoutes(app: FastifyInstance): void {
     const res: Res = b.type === 'mine' ? 'g' : 'm';
     const cap = capOf(v.buildings, res, now);
     const cur = res === 'g' ? v.gold : v.mana;
-    const gained = clamp(cur + amt, 0, cap) - cur;
+    // never negative (balance can legitimately sit above cap, e.g. the starting
+    // stash); bank only what fits and leave the rest in the collector
+    const gained = Math.max(0, Math.min(amt, cap - cur));
+    if (gained <= 0) throw new RuleError('full', 'Storage is full');
     await foldStored(b, now);
-    b.storedFloat -= amt;
+    b.storedFloat -= gained;
     await db.building.update({ where: { id: b.id }, data: { storedFloat: b.storedFloat } });
     const stat = statOf(v);
     if (res === 'g') {

@@ -177,8 +177,9 @@ export function battleRoutes(app: FastifyInstance): void {
 
     // consume troops, credit loot (clamped to caps), $WAR with daily soft cap, trophies
     const capG = capOf(v.buildings, 'g', now), capM = capOf(v.buildings, 'm', now);
-    const gotG = clamp(v.gold + outcome.lootG, 0, capG) - v.gold;
-    const gotM = clamp(v.mana + outcome.lootM, 0, capM) - v.mana;
+    // never negative even when the balance sits above cap (starting stash)
+    const gotG = Math.max(0, clamp(v.gold + outcome.lootG, 0, capG) - v.gold);
+    const gotM = Math.max(0, clamp(v.mana + outcome.lootM, 0, capM) - v.mana);
     let dW = outcome.warEarned;
     if (dW > 0) {
       const today = await getDaily('raidwar', user.id);
