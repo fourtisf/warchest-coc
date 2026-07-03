@@ -20,6 +20,7 @@ import { api, hydrate, withVillage, type BattleOutcomeDto } from './api';
 import { CAM, fitCam } from './camera';
 import { $ } from './dom';
 import { FX } from './fx';
+import { MUSIC } from './music';
 import { SFX } from './sfx';
 import { G, rebuildOcc } from './state';
 import { updateQuestBadge } from './systems';
@@ -94,6 +95,7 @@ export function startBattle(): void {
   const firstAvail = TROOP_ORDER.find((t) => G.army[t] > 0) ?? 'raider';
   G.battle = { sim, base: SCOUT.base, sel: firstAvail, selSpell: null, red, battleId: SCOUT.battleId };
   G.mode = 'battle_deploy';
+  MUSIC.setScene('battle');
   $('hudTop').style.display = 'none';
   $('dock').style.display = 'none';
   $('battleTop').style.display = 'flex';
@@ -260,6 +262,7 @@ export function exitBattle(): void {
 
 export function exitBattleUI(): void {
   G.mode = 'village';
+  MUSIC.setScene('village');
   $('hudTop').style.display = 'flex';
   $('dock').style.display = 'flex';
   $('battleTop').style.display = 'none';

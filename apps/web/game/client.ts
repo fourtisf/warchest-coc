@@ -20,6 +20,7 @@ import { FX } from './fx';
 import { buildGround } from './ground';
 import { initInput } from './input';
 import { GAME_MARKUP } from './markup';
+import { MUSIC } from './music';
 import { render } from './render';
 import { SFX } from './sfx';
 import { freshState, G, jobOf } from './state';
@@ -57,6 +58,16 @@ function wireButtons(): void {
     G.sfx = !G.sfx;
     $('sfxToggle').textContent = G.sfx ? 'On' : 'Off';
   };
+  $('musicToggle').onclick = () => {
+    G.music = !G.music;
+    $('musicToggle').textContent = G.music ? 'On' : 'Off';
+    try {
+      localStorage.setItem('wc_music', G.music ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+    if (G.music) MUSIC.start();
+  };
   $('resetBtn').onclick = () => {
     if (confirm('Reset the village? This signs you out — a new warcamp starts fresh.')) {
       void api.logout().finally(() => location.reload());
@@ -82,6 +93,7 @@ function wireButtons(): void {
   $('placeNO').onclick = () => placeCancel();
   $('introGo').onclick = () => {
     SFX.init();
+    MUSIC.start();
     $('intro').classList.remove('show');
     SFX.play('done');
     toast('Tip: tap your Gold Mine to collect 🪙', 'ok');
@@ -127,6 +139,11 @@ export function bootGame(root: HTMLElement): () => void {
   document.documentElement.classList.add('wc-play');
   root.innerHTML = GAME_MARKUP;
   Object.assign(G, freshState());
+  try {
+    G.music = localStorage.getItem('wc_music') !== '0';
+  } catch {
+    /* private mode */
+  }
   initCamera($('game') as unknown as HTMLCanvasElement);
   world.ground = buildGround();
   renderHUD();
@@ -134,6 +151,7 @@ export function bootGame(root: HTMLElement): () => void {
   initModals();
   initInput();
   wireButtons();
+  $('musicToggle').textContent = G.music ? 'On' : 'Off';
 
   // open the server session (guest cookie or existing account)
   let disposed = false;
@@ -204,6 +222,7 @@ export function bootGame(root: HTMLElement): () => void {
     cancelAnimationFrame(raf);
     clearInterval(poll);
     clearInterval(mailPoll);
+    MUSIC.stop();
     disposeBattle();
     disposeCamera();
     resetVillageUnits();

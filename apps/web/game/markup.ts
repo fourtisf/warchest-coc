@@ -126,6 +126,9 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
     <h2 class="disp">Settings</h2>
     <div class="sub">WARCHEST · Build. Raid. Earn. · warchest.fun</div>
     <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+      <span style="font-weight:600">Music</span><button class="btn ghost" id="musicToggle">On</button>
+    </div>
+    <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
       <span style="font-weight:600">Sound effects</span><button class="btn ghost" id="sfxToggle">On</button>
     </div>
     <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">

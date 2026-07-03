@@ -141,6 +141,7 @@ export interface GState {
   questDone: Record<string, boolean>;
   wallet: { addr: string; short: string } | null;
   sfx: boolean;
+  music: boolean;
   sel: number | null;
   place: PlaceState | null;
   battle: BattleUI | null;
@@ -169,6 +170,7 @@ export function freshState(): GState {
     questDone: {},
     wallet: null,
     sfx: true,
+    music: true,
     sel: null,
     place: null,
     battle: null,
