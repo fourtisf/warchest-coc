@@ -1,5 +1,6 @@
 /** Starting village layout — identical to the prototype's init(). */
 import { prisma } from '@warchest/db';
+import { START_RES } from '@warchest/game-core';
 
 const START_BUILDINGS: ReadonlyArray<readonly [string, number, number]> = [
   ['keep', 18, 18], ['mine', 24, 19], ['well', 13, 19], ['vault', 24, 14], ['tank', 13, 14],
@@ -14,7 +15,9 @@ const START_OBSTACLES: ReadonlyArray<readonly [string, number, number]> = [
 export async function createUserWithVillage(): Promise<string> {
   const db = prisma();
   const user = await db.user.create({ data: {} });
-  const village = await db.village.create({ data: { userId: user.id } });
+  const village = await db.village.create({
+    data: { userId: user.id, gold: START_RES.g, mana: START_RES.m, war: START_RES.w },
+  });
   const walls: Array<{ gx: number; gy: number }> = [];
   for (let x = 17; x <= 22; x++) walls.push({ gx: x, gy: 17 }, { gx: x, gy: 22 });
   for (let y = 18; y <= 21; y++) walls.push({ gx: 17, gy: y }, { gx: 22, gy: y });

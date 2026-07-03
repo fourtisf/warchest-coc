@@ -1,6 +1,7 @@
 /** Bottom sheet (shop / army / info / obstacle / builders) — ported verbatim. */
 import {
   BUILD,
+  OBSTACLE_COST,
   SHOP_ORDER,
   SPELL,
   SPELL_CAP,
@@ -238,7 +239,7 @@ export function renderSheet(): void {
         <b style="font-size:12px;min-width:44px;text-align:right">${tstr(tLeft)}</b></div>`;
     } else {
       body.innerHTML = `<div class="meta" style="color:var(--dim)">Clearing obstacles tidies the camp — and sometimes shakes loose a little $WAR. Takes a builder a moment.</div>
-        <button class="btn" style="width:100%;margin-top:12px" data-act="clear" data-arg="${ob.id}">Clear ${costHTML('g', ob.kind === 'tree' ? 80 : 60)}</button>`;
+        <button class="btn" style="width:100%;margin-top:12px" data-act="clear" data-arg="${ob.id}">Clear ${costHTML('g', OBSTACLE_COST[ob.kind])}</button>`;
     }
   } else if (SHEET.kind === 'jobs') {
     $('sheetTitle').textContent = '🔨 Builders';

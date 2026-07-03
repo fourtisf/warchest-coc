@@ -1,7 +1,13 @@
 /**
- * Canonical game config — extracted VERBATIM from the approved prototype
- * (/reference/warchest-prototype.html, `CFG`). Balance numbers must not drift
- * from the prototype; production-only knobs live at the bottom of this file.
+ * Canonical game config — originally extracted from the approved prototype
+ * (/reference/warchest-prototype.html, `CFG`).
+ *
+ * Deliberate balance drift from the prototype (owner-directed):
+ * - CoC-style early economy: build/upgrade costs through L3 are cheap enough
+ *   that starting resources + early production cover them; L4-L5 costs are
+ *   unchanged (steep) so late progression is funded by raiding.
+ * - L1-L3 collector rates raised so day-one income keeps pace.
+ * Combat stats (hp/dmg/capacity) are untouched.
  */
 import type {
   BuildingDef,
@@ -23,8 +29,8 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
     n: 'Keep', s: 4, cat: 'core', res: 'g', emoji: '🏰', max: [1, 1, 1, 1, 1],
     lv: [
       { hp: 1700, c: 0, t: 0 },
-      { hp: 2500, c: 1200, t: 20 },
-      { hp: 3600, c: 4200, t: 45 },
+      { hp: 2500, c: 500, t: 20 },
+      { hp: 3600, c: 1500, t: 45 },
       { hp: 5000, c: 12000, t: 90 },
       { hp: 6800, c: 30000, t: 180 },
     ],
@@ -33,31 +39,31 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
   mine: {
     n: 'Gold Mine', s: 3, cat: 'res', res: 'm', emoji: '⛏️', max: [1, 2, 3, 4, 5],
     lv: [
-      { hp: 420, c: 150, t: 5, rate: 6, cap: 500 },
-      { hp: 540, c: 420, t: 12, rate: 9, cap: 900 },
-      { hp: 680, c: 1050, t: 25, rate: 13, cap: 1600 },
-      { hp: 840, c: 2700, t: 50, rate: 19, cap: 2800 },
-      { hp: 1020, c: 6200, t: 100, rate: 27, cap: 5000 },
+      { hp: 420, c: 80, t: 5, rate: 10, cap: 500 },
+      { hp: 540, c: 200, t: 12, rate: 15, cap: 900 },
+      { hp: 680, c: 500, t: 25, rate: 20, cap: 1600 },
+      { hp: 840, c: 2700, t: 50, rate: 26, cap: 2800 },
+      { hp: 1020, c: 6200, t: 100, rate: 34, cap: 5000 },
     ],
     d: 'Digs Gold over time. Tap to collect.',
   },
   well: {
     n: 'Mana Well', s: 3, cat: 'res', res: 'g', emoji: '🔮', max: [1, 2, 3, 4, 5],
     lv: [
-      { hp: 420, c: 150, t: 5, rate: 6, cap: 500 },
-      { hp: 540, c: 420, t: 12, rate: 9, cap: 900 },
-      { hp: 680, c: 1050, t: 25, rate: 13, cap: 1600 },
-      { hp: 840, c: 2700, t: 50, rate: 19, cap: 2800 },
-      { hp: 1020, c: 6200, t: 100, rate: 27, cap: 5000 },
+      { hp: 420, c: 80, t: 5, rate: 10, cap: 500 },
+      { hp: 540, c: 200, t: 12, rate: 15, cap: 900 },
+      { hp: 680, c: 500, t: 25, rate: 20, cap: 1600 },
+      { hp: 840, c: 2700, t: 50, rate: 26, cap: 2800 },
+      { hp: 1020, c: 6200, t: 100, rate: 34, cap: 5000 },
     ],
     d: 'Condenses raw Mana. Tap to collect.',
   },
   vault: {
     n: 'Gold Vault', s: 3, cat: 'res', res: 'm', emoji: '🧰', max: [1, 1, 2, 2, 3],
     lv: [
-      { hp: 620, c: 300, t: 8, add: 2000 },
-      { hp: 780, c: 900, t: 20, add: 3800 },
-      { hp: 960, c: 2500, t: 40, add: 7200 },
+      { hp: 620, c: 150, t: 8, add: 2000 },
+      { hp: 780, c: 400, t: 20, add: 3800 },
+      { hp: 960, c: 1000, t: 40, add: 7200 },
       { hp: 1180, c: 7000, t: 80, add: 13500 },
       { hp: 1450, c: 18000, t: 160, add: 25000 },
     ],
@@ -66,9 +72,9 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
   tank: {
     n: 'Mana Reservoir', s: 3, cat: 'res', res: 'g', emoji: '⚗️', max: [1, 1, 2, 2, 3],
     lv: [
-      { hp: 620, c: 300, t: 8, add: 2000 },
-      { hp: 780, c: 900, t: 20, add: 3800 },
-      { hp: 960, c: 2500, t: 40, add: 7200 },
+      { hp: 620, c: 150, t: 8, add: 2000 },
+      { hp: 780, c: 400, t: 20, add: 3800 },
+      { hp: 960, c: 1000, t: 40, add: 7200 },
       { hp: 1180, c: 7000, t: 80, add: 13500 },
       { hp: 1450, c: 18000, t: 160, add: 25000 },
     ],
@@ -77,9 +83,9 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
   cannon: {
     n: 'Cannon', s: 3, cat: 'def', res: 'g', emoji: '💣', max: [1, 2, 2, 3, 4],
     lv: [
-      { hp: 440, c: 250, t: 6, dmg: 12, rate: 0.8, rng: 5.5 },
-      { hp: 560, c: 700, t: 15, dmg: 15, rate: 0.8, rng: 5.5 },
-      { hp: 710, c: 2000, t: 35, dmg: 19, rate: 0.8, rng: 5.7 },
+      { hp: 440, c: 120, t: 6, dmg: 12, rate: 0.8, rng: 5.5 },
+      { hp: 560, c: 350, t: 15, dmg: 15, rate: 0.8, rng: 5.5 },
+      { hp: 710, c: 900, t: 35, dmg: 19, rate: 0.8, rng: 5.7 },
       { hp: 900, c: 5500, t: 70, dmg: 24, rate: 0.8, rng: 5.7 },
       { hp: 1130, c: 14000, t: 140, dmg: 30, rate: 0.8, rng: 6 },
     ],
@@ -88,9 +94,9 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
   arrow: {
     n: 'Arrow Tower', s: 3, cat: 'def', res: 'g', emoji: '🏹', max: [0, 1, 2, 3, 4],
     lv: [
-      { hp: 390, c: 420, t: 8, dmg: 8, rate: 0.55, rng: 6.5 },
-      { hp: 500, c: 1100, t: 18, dmg: 10, rate: 0.55, rng: 6.5 },
-      { hp: 640, c: 3000, t: 40, dmg: 13, rate: 0.55, rng: 6.8 },
+      { hp: 390, c: 200, t: 8, dmg: 8, rate: 0.55, rng: 6.5 },
+      { hp: 500, c: 500, t: 18, dmg: 10, rate: 0.55, rng: 6.5 },
+      { hp: 640, c: 1200, t: 40, dmg: 13, rate: 0.55, rng: 6.8 },
       { hp: 810, c: 8000, t: 80, dmg: 16, rate: 0.55, rng: 6.8 },
       { hp: 1010, c: 19000, t: 160, dmg: 20, rate: 0.5, rng: 7 },
     ],
@@ -99,7 +105,7 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
   mortar: {
     n: 'Mortar', s: 3, cat: 'def', res: 'g', emoji: '☄️', max: [0, 0, 1, 1, 2],
     lv: [
-      { hp: 360, c: 1500, t: 25, dmg: 55, rate: 4.2, rng: 8, min: 3, spl: 1.5 },
+      { hp: 360, c: 800, t: 25, dmg: 55, rate: 4.2, rng: 8, min: 3, spl: 1.5 },
       { hp: 460, c: 4500, t: 60, dmg: 72, rate: 4.2, rng: 8.5, min: 3, spl: 1.5 },
       { hp: 580, c: 12000, t: 120, dmg: 92, rate: 4, rng: 9, min: 3, spl: 1.6 },
     ],
@@ -108,9 +114,9 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
   wall: {
     n: 'Wall', s: 1, cat: 'def', res: 'g', emoji: '🧱', max: [25, 50, 75, 100, 125],
     lv: [
-      { hp: 320, c: 30, t: 0 },
-      { hp: 680, c: 90, t: 0 },
-      { hp: 1250, c: 240, t: 0 },
+      { hp: 320, c: 20, t: 0 },
+      { hp: 680, c: 50, t: 0 },
+      { hp: 1250, c: 120, t: 0 },
       { hp: 2100, c: 600, t: 0 },
       { hp: 3400, c: 1400, t: 0 },
     ],
@@ -119,9 +125,9 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
   barracks: {
     n: 'Barracks', s: 3, cat: 'army', res: 'm', emoji: '⚔️', max: [1, 1, 2, 2, 2],
     lv: [
-      { hp: 360, c: 200, t: 6 },
-      { hp: 460, c: 600, t: 15 },
-      { hp: 580, c: 1800, t: 35 },
+      { hp: 360, c: 100, t: 6 },
+      { hp: 460, c: 300, t: 15 },
+      { hp: 580, c: 800, t: 35 },
       { hp: 720, c: 5000, t: 70 },
       { hp: 880, c: 12000, t: 140 },
     ],
@@ -130,9 +136,9 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
   camp: {
     n: 'Army Camp', s: 4, cat: 'army', res: 'm', emoji: '⛺', max: [1, 1, 2, 2, 3],
     lv: [
-      { hp: 320, c: 250, t: 8, cap: 20 },
-      { hp: 400, c: 900, t: 20, cap: 30 },
-      { hp: 500, c: 2800, t: 45, cap: 40 },
+      { hp: 320, c: 120, t: 8, cap: 20 },
+      { hp: 400, c: 400, t: 20, cap: 30 },
+      { hp: 500, c: 1000, t: 45, cap: 40 },
       { hp: 620, c: 8000, t: 90, cap: 55 },
       { hp: 760, c: 20000, t: 180, cap: 75 },
     ],
@@ -146,15 +152,15 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
   bomb: {
     n: 'Hidden Bomb', s: 1, cat: 'trap', res: 'g', emoji: '💥', max: [2, 3, 4, 5, 6],
     lv: [
-      { hp: 1, c: 120, t: 0, dmg: 45, spl: 1.3 },
-      { hp: 1, c: 600, t: 0, dmg: 70, spl: 1.3 },
+      { hp: 1, c: 80, t: 0, dmg: 45, spl: 1.3 },
+      { hp: 1, c: 400, t: 0, dmg: 70, spl: 1.3 },
       { hp: 1, c: 2400, t: 0, dmg: 100, spl: 1.4 },
     ],
     d: 'Invisible to attackers. Explodes when ground troops step close.',
   },
   spring: {
     n: 'Spring Trap', s: 1, cat: 'trap', res: 'g', emoji: '🌀', max: [1, 2, 3, 4, 5],
-    lv: [{ hp: 1, c: 300, t: 0 }],
+    lv: [{ hp: 1, c: 150, t: 0 }],
     d: 'Invisible to attackers. Launches a ground troop clean off the map.',
   },
 };
@@ -234,9 +240,9 @@ export const BASE_CAP = 1200;
 export const BATTLE_TIME = 180;
 export const NEXT_COST = 50;
 
-/** Obstacle clear costs (gold) and starting resources — prototype values. */
-export const OBSTACLE_COST = { tree: 80, rock: 60 } as const;
-export const START_RES = { g: 350, m: 350, w: 40 } as const;
+/** Obstacle clear costs (gold) and starting resources — eased for the CoC-style early game. */
+export const OBSTACLE_COST = { tree: 40, rock: 30 } as const;
+export const START_RES = { g: 800, m: 800, w: 40 } as const;
 export const START_TROPHIES = 10;
 export const MAX_BUILDERS = 3;
 export const START_BUILDERS = 2;
