@@ -3,8 +3,8 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '@warchest/db';
 import { requireUser } from './auth';
 
-const displayName = (wallet: string | null, id: string): string =>
-  wallet ? wallet.slice(0, 4) + '…' + wallet.slice(-4) : 'Chief-' + id.slice(-4);
+const displayName = (name: string | null, wallet: string | null, id: string): string =>
+  name ?? (wallet ? wallet.slice(0, 4) + '…' + wallet.slice(-4) : 'Chief-' + id.slice(-4));
 
 export function metaRoutes(app: FastifyInstance): void {
   app.get('/leaderboard', async (req) => {
@@ -13,13 +13,13 @@ export function metaRoutes(app: FastifyInstance): void {
     const top = await db.village.findMany({
       orderBy: [{ trophies: 'desc' }, { createdAt: 'asc' }],
       take: 100,
-      include: { user: { select: { id: true, wallet: true, banned: true } } },
+      include: { user: { select: { id: true, wallet: true, banned: true, name: true } } },
     });
     const rows = top
       .filter((v) => !v.user.banned)
       .map((v, i) => ({
         rank: i + 1,
-        name: displayName(v.user.wallet, v.user.id),
+        name: displayName(v.user.name, v.user.wallet, v.user.id),
         trophies: v.trophies,
         me: v.userId === user.id,
       }));

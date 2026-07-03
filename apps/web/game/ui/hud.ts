@@ -13,7 +13,8 @@ export function renderHUD(): void {
   $('bMana').style.width = clamp((G.res.m / capOf('m')) * 100, 0, 100) + '%';
   $('vTro').textContent = String(G.trophies);
   $('vBuild').textContent = freeBuilders() + '/' + G.buildersTotal;
-  $('walletTxt').textContent = G.wallet ? G.wallet.short : 'Connect Wallet';
+  $('walletTxt').textContent =
+    G.playerName ?? (G.wallet ? G.wallet.short : 'Connect Wallet');
   $('walletBtn').classList.toggle('off', !G.wallet);
 }
 

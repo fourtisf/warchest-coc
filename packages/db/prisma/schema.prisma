@@ -11,6 +11,8 @@ datasource db {
 model User {
   id        String    @id @default(cuid())
   wallet    String?   @unique
+  /// chosen commander name (3-16 chars, set before first entry)
+  name      String?
   createdAt DateTime  @default(now())
   banned    Boolean   @default(false)
   isAdmin   Boolean   @default(false)

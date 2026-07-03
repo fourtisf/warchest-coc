@@ -57,6 +57,12 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
     <div class="feat"><div class="fi">⚔️</div><div><b>Raid enemy bases.</b> Train an army, deploy at the edges, and let the AI fight. 50% = ★, destroy the Keep = ★, 100% = ★★★.</div></div>
     <div class="feat"><div class="fi">◆</div><div><b>Earn $WAR on-chain.</b> Raids and quests pay out $WAR — spend it to rush timers or hire builders, or claim it on-chain to your Solana wallet.</div></div>
     <div class="note">⚔️ Your warcamp is saved to your account. Connect a Solana wallet to secure it, raid real players, and claim $WAR on-chain.</div>
+    <div id="nameRow" style="display:none;margin-top:14px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px">🛡️ Name your commander</div>
+      <input id="nameInput" maxlength="16" placeholder="3-16 letters or numbers" autocomplete="nickname"
+        style="width:100%;padding:11px 12px;border-radius:10px;border:1px solid rgba(240,180,80,.35);background:rgba(0,0,0,.35);color:var(--txt);font:600 14px Rubik,sans-serif;outline:none" />
+      <div id="nameErr" style="display:none;color:var(--bad);font-size:11.5px;margin-top:5px"></div>
+    </div>
     <button class="btn" id="introGo" style="width:100%;margin-top:16px;padding:13px;font-size:15px">⚔️ Enter Village</button>
     <a href="https://x.com/Warchestfun" target="_blank" rel="noopener noreferrer" style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;color:var(--dim);text-decoration:none;font-size:12.5px;font-weight:600"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="display:block"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> Follow @Warchestfun — drops, seasons &amp; updates</a>
   </div>
@@ -125,6 +131,13 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
     <button class="x" data-close="settings">✕</button>
     <h2 class="disp">Settings</h2>
     <div class="sub">WARCHEST · Build. Raid. Earn. · warchest.fun</div>
+    <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+      <span style="font-weight:600">Commander</span>
+      <span class="row" style="gap:8px"><b id="nameLabel" style="font-size:13px">—</b><button class="btn ghost" id="nameChange">Change</button></span>
+    </div>
+    <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+      <span style="font-weight:600">Player ID</span><b id="pidLabel" style="font-family:monospace;font-size:12.5px;color:var(--dim)">—</b>
+    </div>
     <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
       <span style="font-weight:600">Music</span><button class="btn ghost" id="musicToggle">On</button>
     </div>

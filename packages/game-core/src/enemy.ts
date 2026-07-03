@@ -11,7 +11,7 @@ import type { BuildingType, EnemyBase, SimBuilding } from './types';
  */
 export function genEnemy(seed: number, keepLevel: number): EnemyBase {
   const rng = mulberry32(seed);
-  const th = clamp(keepLevel, 1, 5);
+  const th = clamp(keepLevel, 1, 10);
   const list: SimBuilding[] = [];
   let id = 1;
   const occ = new Int32Array(MAP * MAP);

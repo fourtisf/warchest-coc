@@ -205,9 +205,13 @@ export function lvlPips(c: CanvasRenderingContext2D, b: DrawableBuilding, s: num
   const lv = b.level;
   if (lv < 2) return;
   const p = I(b.gx + s - 0.32, b.gy + s - 0.32);
-  for (let i = 0; i < lv - 1 && i < 4; i++) {
+  // pips restart per prestige tier: gold (L2-5), crimson (L6-8), mythic (L9-10)
+  const n = lv >= 9 ? lv - 8 : lv >= 6 ? lv - 5 : lv - 1;
+  const fill = lv >= 9 ? '#cfc4ff' : lv >= 6 ? '#ff7a5c' : '#ffd24a';
+  const edge2 = lv >= 9 ? '#5a3f9a' : lv >= 6 ? '#8a2f1a' : '#8a5c00';
+  for (let i = 0; i < n && i < 4; i++) {
     const x = p.x - i * 10, y = p.y + 3;
-    c.fillStyle = '#ffd24a';
+    c.fillStyle = fill;
     c.beginPath();
     c.moveTo(x, y - 4);
     c.lineTo(x + 3.4, y);
@@ -215,9 +219,43 @@ export function lvlPips(c: CanvasRenderingContext2D, b: DrawableBuilding, s: num
     c.lineTo(x - 3.4, y);
     c.closePath();
     c.fill();
-    c.strokeStyle = '#8a5c00';
+    c.strokeStyle = edge2;
     c.lineWidth = 1;
     c.stroke();
+  }
+}
+
+/** Prestige aura for high-tier buildings: embers from L7, arcane runes from L9. */
+export function prestigeFx(
+  c: CanvasRenderingContext2D,
+  b: DrawableBuilding,
+  s: number,
+  t: number,
+): void {
+  const lv = b.level;
+  if (lv < 7) return;
+  const p = I(b.gx + s / 2, b.gy + s / 2);
+  const n = lv >= 9 ? 4 : 3;
+  for (let i = 0; i < n; i++) {
+    const ph = (t * 0.45 + i / n + (b.id || 1) * 0.137) % 1;
+    const a = 1 - ph;
+    const x = p.x + Math.sin(i * 2.1 + (b.id || 1) + ph * 2) * s * 13;
+    const y = p.y - 6 - ph * (26 + s * 7);
+    if (lv >= 9) {
+      c.fillStyle = 'rgba(190,160,255,' + (0.6 * a).toFixed(3) + ')';
+      c.beginPath();
+      c.moveTo(x, y - 3.2);
+      c.lineTo(x + 2.5, y);
+      c.lineTo(x, y + 3.2);
+      c.lineTo(x - 2.5, y);
+      c.closePath();
+      c.fill();
+    } else {
+      c.fillStyle = 'rgba(255,' + String(120 + ((60 * a) | 0)) + ',40,' + (0.55 * a).toFixed(3) + ')';
+      c.beginPath();
+      c.arc(x, y, 1.5 + a, 0, 7);
+      c.fill();
+    }
   }
 }
 

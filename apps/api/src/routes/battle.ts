@@ -273,7 +273,7 @@ export function battleRoutes(app: FastifyInstance): void {
       where: { defenderId: user.id, status: 'resolved' },
       orderBy: { resolvedAt: 'desc' },
       take: 20,
-      include: { attacker: { select: { wallet: true, id: true } } },
+      include: { attacker: { select: { wallet: true, id: true, name: true } } },
     });
     const unseen = rows.filter((r) => !r.seenByDefender).length;
     if (!peek)
@@ -290,9 +290,11 @@ export function battleRoutes(app: FastifyInstance): void {
         pct: r.pct,
         lootG: r.lootG,
         lootM: r.lootM,
-        attacker: r.attacker.wallet
-          ? r.attacker.wallet.slice(0, 4) + '…' + r.attacker.wallet.slice(-4)
-          : 'Chief-' + r.attacker.id.slice(-4),
+        attacker:
+          r.attacker.name ??
+          (r.attacker.wallet
+            ? r.attacker.wallet.slice(0, 4) + '…' + r.attacker.wallet.slice(-4)
+            : 'Chief-' + r.attacker.id.slice(-4)),
       })),
     };
   });

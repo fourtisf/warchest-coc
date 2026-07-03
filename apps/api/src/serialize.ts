@@ -15,7 +15,7 @@ export function serializeVillage(v: FullVillage, user: User, now = new Date()): 
       claimFeeBps: ENV.CLAIM_FEE_BPS,
       claimDailyCap: ENV.CLAIM_DAILY_CAP,
     },
-    user: { id: user.id, wallet: user.wallet, banned: user.banned, isAdmin: user.isAdmin },
+    user: { id: user.id, wallet: user.wallet, name: user.name, banned: user.banned, isAdmin: user.isAdmin },
     res: { g: v.gold, m: v.mana, w: v.war },
     trophies: v.trophies,
     buildersTotal: v.buildersTotal,

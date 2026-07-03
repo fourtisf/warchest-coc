@@ -14,7 +14,7 @@ import {
 describe('config invariants', () => {
   it('every building level table matches its max-count table length or is hut/mortar-shaped', () => {
     for (const [type, def] of Object.entries(BUILD)) {
-      expect(def.max.length, type).toBe(5);
+      expect(def.max.length, type).toBe(10);
       expect(def.lv.length, type).toBeGreaterThan(0);
       for (const lv of def.lv) {
         expect(lv.hp, type).toBeGreaterThan(0);
@@ -22,9 +22,9 @@ describe('config invariants', () => {
         expect(lv.t, type).toBeGreaterThanOrEqual(0);
       }
     }
-    expect(BUILD.mortar.lv.length).toBe(3);
+    expect(BUILD.mortar.lv.length).toBe(10);
     expect(BUILD.hut.lv.length).toBe(1);
-    expect(BUILD.wall.max).toEqual([25, 50, 75, 100, 125]);
+    expect(BUILD.wall.max).toEqual([25, 50, 75, 100, 125, 150, 175, 200, 225, 250]);
   });
 
   it('troop stats match the prototype', () => {
@@ -60,7 +60,7 @@ describe('placement / occupancy', () => {
 describe('loot economy', () => {
   it('enemy loot pools scale with keep level and never go negative', () => {
     let prev = 0;
-    for (let th = 1; th <= 5; th++) {
+    for (let th = 1; th <= 10; th++) {
       // average over seeds to smooth the ±25% roll
       let sum = 0;
       const n = 30;

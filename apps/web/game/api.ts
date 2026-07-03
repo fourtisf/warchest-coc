@@ -35,7 +35,7 @@ export interface ServerConfig {
 export interface ServerVillage {
   serverNow: number;
   config: ServerConfig;
-  user: { id: string; wallet: string | null; banned: boolean; isAdmin: boolean };
+  user: { id: string; wallet: string | null; name: string | null; banned: boolean; isAdmin: boolean };
   res: { g: number; m: number; w: number };
   trophies: number;
   buildersTotal: number;
@@ -130,6 +130,8 @@ export function hydrate(payload: ServerVillage): void {
   G.wallet = payload.user.wallet
     ? { addr: payload.user.wallet, short: payload.user.wallet.slice(0, 4) + '…' + payload.user.wallet.slice(-4) }
     : null;
+  G.playerName = payload.user.name;
+  G.playerId = payload.user.id.slice(-6).toUpperCase();
   const prevLv = new Map(G.buildings.map((b) => [b.id, b.level]));
   G.buildings = payload.buildings.map((b): VillageBuilding => ({
     id: b.id,
@@ -190,6 +192,7 @@ export const api = {
   guest: () => call<ServerVillage>('POST', '/auth/guest'),
   me: () => call<ServerVillage>('GET', '/me'),
   logout: () => call<{ ok: true }>('POST', '/auth/logout'),
+  setName: (name: string) => call<ServerVillage>('POST', '/profile/name', { name }),
   nonce: () => call<{ nonce: string }>('GET', '/auth/nonce'),
   walletLogin: (wallet: string, signature: string, nonce: string) =>
     call<ServerVillage>('POST', '/auth/wallet', { wallet, signature, nonce }),

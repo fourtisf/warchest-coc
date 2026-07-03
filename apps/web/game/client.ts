@@ -53,7 +53,11 @@ function wireButtons(): void {
     SFX.play('tap');
     openSheet('jobs');
   };
-  $('setBtn').onclick = () => openOv('settings');
+  $('setBtn').onclick = () => {
+    $('nameLabel').textContent = G.playerName ?? '—';
+    $('pidLabel').textContent = G.playerId ? '#' + G.playerId : '—';
+    openOv('settings');
+  };
   $('sfxToggle').onclick = () => {
     G.sfx = !G.sfx;
     $('sfxToggle').textContent = G.sfx ? 'On' : 'Off';
@@ -91,12 +95,54 @@ function wireButtons(): void {
   $('resHome').onclick = () => exitBattle();
   $('placeOK').onclick = () => placeConfirm();
   $('placeNO').onclick = () => placeCancel();
-  $('introGo').onclick = () => {
+  const enterVillage = (): void => {
     SFX.init();
     MUSIC.start();
     $('intro').classList.remove('show');
     SFX.play('done');
+    renderHUD();
     toast('Tip: tap your Gold Mine to collect 🪙', 'ok');
+  };
+  $('introGo').onclick = () => {
+    if ($('nameRow').style.display !== 'none') {
+      // first entry: the commander must be named before the gates open
+      const input = $('nameInput') as HTMLInputElement;
+      const clean = input.value.trim().replace(/\s+/g, ' ');
+      const err = $('nameErr');
+      if (!/^[A-Za-z0-9_ ]{3,16}$/.test(clean)) {
+        err.textContent = 'Name must be 3-16 letters, numbers, spaces or _';
+        err.style.display = 'block';
+        return;
+      }
+      $('introGo').textContent = 'Saving…';
+      api
+        .setName(clean)
+        .then((v) => {
+          hydrate(v);
+          $('nameRow').style.display = 'none';
+          enterVillage();
+        })
+        .catch((e: unknown) => {
+          $('introGo').textContent = '⚔️ Enter Village';
+          err.textContent = e instanceof Error ? e.message : 'Could not save name';
+          err.style.display = 'block';
+        });
+      return;
+    }
+    enterVillage();
+  };
+  $('nameChange').onclick = () => {
+    const next = prompt('New commander name (3-16 letters/numbers):', G.playerName ?? '');
+    if (next === null) return;
+    api
+      .setName(next)
+      .then((v) => {
+        hydrate(v);
+        $('nameLabel').textContent = G.playerName ?? '—';
+        renderHUD();
+        toast('Name updated ✓', 'ok');
+      })
+      .catch((e: unknown) => toast(e instanceof Error ? e.message : 'Could not save name', 'warn'));
   };
   $('walletBtn').onclick = () => {
     fillWallet();
@@ -158,6 +204,7 @@ export function bootGame(root: HTMLElement): () => void {
   const boot = async (): Promise<void> => {
     try {
       hydrate(await api.guest());
+      if (!G.playerName) $('nameRow').style.display = 'block';
       renderHUD();
       updateQuestBadge();
       void refreshMailBadge();

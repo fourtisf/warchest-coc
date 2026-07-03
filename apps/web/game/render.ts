@@ -4,7 +4,7 @@ import {
 } from '@warchest/game-core';
 import { ART } from './art/buildings';
 import type { DrawableBuilding, DrawableUnit } from './art/drawable';
-import { I, bShadow, hpBar, pad, prism, woodPost } from './art/helpers';
+import { I, bShadow, hpBar, pad, prestigeFx, prism, woodPost } from './art/helpers';
 import { OBST_ART } from './art/obstacles';
 import { drawProj } from './art/projectiles';
 import { drawUnit } from './art/units';
@@ -180,7 +180,10 @@ export function render(): void {
       const job = !inBattle ? jobOf(b.id) : undefined;
       const underConstruction = job && (b as VillageBuilding).jobKind === 'new';
       if (underConstruction) drawConstructionSite(ctx, b, s, G.t);
-      else ART[b.type](ctx, b, G.t);
+      else {
+        ART[b.type](ctx, b, G.t);
+        if (b.level >= 7 && BUILD[b.type].cat !== 'trap') prestigeFx(ctx, b, s, G.t);
+      }
       if (!inBattle) {
         if (job) {
           const p = I(cx, b.gy + s / 2);

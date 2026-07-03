@@ -85,6 +85,18 @@ export function authRoutes(app: FastifyInstance): void {
     return stateFor(user);
   });
 
+  // Commander name: required before first entry; lives on the account, so it
+  // rides along when the wallet is connected (guest → wallet link keeps the row).
+  app.post('/profile/name', async (req, reply) => {
+    const user = await requireUser(req);
+    const { name } = z.object({ name: z.string().max(64) }).parse(req.body);
+    const clean = name.trim().replace(/\s+/g, ' ');
+    if (!/^[A-Za-z0-9_ ]{3,16}$/.test(clean))
+      return reply.code(400).send({ error: 'Name must be 3-16 letters, numbers, spaces or _' });
+    const updated = await prisma().user.update({ where: { id: user.id }, data: { name: clean } });
+    return stateFor(updated);
+  });
+
   // "Reset village": drop the session; the next /auth/guest starts fresh.
   app.post('/auth/logout', async (_req, reply) => {
     reply.clearCookie(COOKIE, { path: '/' });

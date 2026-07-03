@@ -140,6 +140,8 @@ export interface GState {
   stat: GameStat;
   questDone: Record<string, boolean>;
   wallet: { addr: string; short: string } | null;
+  playerName: string | null;
+  playerId: string;
   sfx: boolean;
   music: boolean;
   sel: number | null;
@@ -169,6 +171,8 @@ export function freshState(): GState {
     },
     questDone: {},
     wallet: null,
+    playerName: null,
+    playerId: '',
     sfx: true,
     music: true,
     sel: null,
