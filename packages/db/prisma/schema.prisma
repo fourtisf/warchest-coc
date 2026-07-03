@@ -13,6 +13,8 @@ model User {
   wallet    String?   @unique
   /// chosen commander name (3-16 chars, set before first entry)
   name      String?
+  /// referrer user id (rewarded when this account wins its first raid)
+  refBy     String?
   createdAt DateTime  @default(now())
   banned    Boolean   @default(false)
   isAdmin   Boolean   @default(false)
@@ -38,6 +40,11 @@ model Village {
   createdAt     DateTime   @default(now())
   /// quest/progress counters (trained, wins, raids, gCollected, ... tTypes)
   statJson      Json       @default("{}")
+  /// daily war chest
+  lastDailyAt   DateTime?
+  dailyStreak   Int        @default(0)
+  /// obstacle respawn clock
+  lastObstAt    DateTime?
   buildings     Building[]
   obstacles     Obstacle[]
   army          Army?
@@ -141,6 +148,9 @@ model Battle {
   seenByDefender       Boolean  @default(false)
   createdAt            DateTime @default(now())
   resolvedAt           DateTime?
+
+  /// defender has used their revenge for this raid
+  revenged             Boolean  @default(false)
 
   @@index([attackerId, status])
   @@index([defenderId, resolvedAt])

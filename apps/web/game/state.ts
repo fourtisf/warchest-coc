@@ -19,6 +19,7 @@ import {
   type ArmyCounts,
   type BattleSim,
   type BuildingType,
+  type DeployLogEntry,
   type EnemyBase,
   type ResourceKey,
   type SpellCounts,
@@ -104,6 +105,8 @@ export interface BattleUI {
   selSpell: SpellType | null;
   /** red no-deploy overlay, baked once per battle */
   red: HTMLCanvasElement;
+  /** replay mode: the recorded log drives the sim instead of user input */
+  replay?: { log: DeployLogEntry[]; idx: number; speed: number; attacker: string };
 }
 
 export type Mode = 'village' | 'placing' | 'battle_deploy' | 'battle';
@@ -139,6 +142,7 @@ export interface GState {
   trainQ: TrainJob[];
   stat: GameStat;
   questDone: Record<string, boolean>;
+  daily: { ready: boolean; streak: number };
   wallet: { addr: string; short: string } | null;
   playerName: string | null;
   playerId: string;
@@ -170,6 +174,7 @@ export function freshState(): GState {
       built: 0, obst: 0, lootG: 0, lootM: 0, stars: 0, threeStar: 0, claims: 0, tTypes: {},
     },
     questDone: {},
+    daily: { ready: false, streak: 0 },
     wallet: null,
     playerName: null,
     playerId: '',

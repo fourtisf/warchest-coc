@@ -51,5 +51,9 @@ export function serializeVillage(v: FullVillage, user: User, now = new Date()): 
     })),
     questDone: Object.fromEntries(v.questStates.filter((q) => q.done).map((q) => [q.questId, true])),
     stat: statOf(v),
+    daily: {
+      ready: (v.lastDailyAt?.getTime() ?? 0) < now.getTime() - 20 * 3600e3,
+      streak: v.dailyStreak,
+    },
   };
 }

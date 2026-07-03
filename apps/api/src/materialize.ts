@@ -4,8 +4,8 @@
  * sequentially, and production accrues from timestamps. No server ticks.
  */
 import { prisma, type Army, type Building, type Obstacle, type QuestState, type TrainJob, type Village } from '@warchest/db';
-import { BUILD, clamp } from '@warchest/game-core';
-import { armyOf, asTroop, asType, barracksSpeed, isBusy, prodPerSec, trainSeconds } from './rules';
+import { BUILD, MAP, clamp } from '@warchest/game-core';
+import { armyOf, asTroop, asType, barracksSpeed, isBusy, occGrid, prodPerSec, trainSeconds } from './rules';
 
 export interface FullVillage extends Village {
   buildings: Building[];
@@ -96,6 +96,26 @@ export async function materializeVillage(userId: string, now = new Date()): Prom
       v.war += rw;
       stat.obst += 1;
       statDirty = true;
+    }
+  }
+
+  // 1c. nature reclaims the map: a new obstacle sprouts every ~12h (cap 8)
+  {
+    const alive = v.obstacles.filter((o) => !o.cleared).length;
+    const last = v.lastObstAt?.getTime() ?? v.createdAt.getTime();
+    if (alive < 8 && now.getTime() - last > 12 * 3600e3) {
+      const occ = occGrid(v.buildings, v.obstacles);
+      for (let tries = 0; tries < 24; tries++) {
+        const gx = 2 + Math.floor(Math.random() * (MAP - 4));
+        const gy = 2 + Math.floor(Math.random() * (MAP - 4));
+        if (occ[gy * MAP + gx]) continue;
+        const kind = Math.random() < 0.7 ? 'tree' : 'rock';
+        const ob = await db.obstacle.create({ data: { villageId: v.id, kind, gx, gy } });
+        v.obstacles.push(ob);
+        break;
+      }
+      await db.village.update({ where: { id: v.id }, data: { lastObstAt: now } });
+      v.lastObstAt = now;
     }
   }
 

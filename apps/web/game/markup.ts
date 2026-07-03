@@ -35,6 +35,7 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
   <div class="box" id="bTimer">3:00</div>
   <div class="box row" style="gap:12px"><span id="bPct">0%</span><span id="bStars"><span class="s">★</span><span class="s">★</span><span class="s">★</span></span></div>
   <div class="box" id="bLoot"><span style="color:var(--gold2)">🪙 <span id="bLootG">0</span></span><span style="color:var(--mana2)">🔮 <span id="bLootM">0</span></span></div>
+  <button class="btn" id="speedBtn" style="margin-left:auto;display:none">▶ 1×</button>
   <button class="btn red" id="endBattle" style="margin-left:auto">End Battle</button>
 </div>
 <div id="deployHint">Pick a unit, then tap outside the red zone to deploy</div>
@@ -101,6 +102,17 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
   </div>
 </div>
 
+<div class="overlay" id="daily">
+  <div class="modal" style="text-align:center">
+    <h2 class="disp">Daily War Chest</h2>
+    <div class="sub">Return every day — the chest grows with your streak</div>
+    <div style="font-size:46px;margin:10px 0 4px">🎁</div>
+    <div id="dailyStreak" style="color:var(--dim);font-size:12.5px;margin-bottom:6px"></div>
+    <div id="dailyAmt" style="font-weight:800;font-size:24px;color:var(--war)">◆ 5</div>
+    <button class="btn war" id="dailyClaim" style="width:100%;margin-top:16px;padding:12px">Open the Chest</button>
+  </div>
+</div>
+
 <div class="overlay" id="wallet">
   <div class="modal">
     <button class="x" data-close="wallet">✕</button>
@@ -139,6 +151,10 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
     </div>
     <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
       <span style="font-weight:600">Player ID</span><b id="pidLabel" style="font-family:monospace;font-size:12.5px;color:var(--dim)">—</b>
+    </div>
+    <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+      <span style="font-weight:600">Invite friends <span style="color:var(--war);font-weight:700;font-size:11.5px">earn ◆25</span></span>
+      <button class="btn ghost" id="inviteBtn">Copy link</button>
     </div>
     <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
       <span style="font-weight:600">Music</span><button class="btn ghost" id="musicToggle">On</button>

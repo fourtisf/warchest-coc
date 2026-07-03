@@ -127,7 +127,7 @@ export function render(): void {
   );
   ctx.drawImage(ground.cv, -ground.ox, -ground.oy);
   const inBattle = G.mode === 'battle' || G.mode === 'battle_deploy';
-  if (inBattle && G.battle && !G.battle.sim.over)
+  if (inBattle && G.battle && !G.battle.sim.over && !G.battle.replay)
     ctx.drawImage(G.battle.red, -ground.ox, -ground.oy);
   // active spell rings (heal / rage), under everything that walks
   if (inBattle && G.battle) {

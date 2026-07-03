@@ -45,7 +45,7 @@ async function currentSeason(): Promise<string> {
 export function battleRoutes(app: FastifyInstance): void {
   app.post('/battle/scout', async (req, reply) => {
     const user = await requireUser(req);
-    const body = z.object({ rerollFrom: z.string().optional() }).parse(req.body ?? {});
+    const body = z.object({ rerollFrom: z.string().optional(), revenge: z.string().optional() }).parse(req.body ?? {});
     const now = new Date();
     const v = await materializeVillage(user.id, now);
     const db = prisma();
@@ -78,6 +78,47 @@ export function battleRoutes(app: FastifyInstance): void {
 
     let snapshot: Snapshot;
     let defenderId: string | null = null;
+    if (body.revenge) {
+      // revenge: hit back the attacker from a defense-log entry (once per raid)
+      const src = await db.battle.findUnique({
+        where: { id: body.revenge },
+        include: { attacker: { select: { id: true, banned: true } } },
+      });
+      if (!src || src.defenderId !== user.id || src.status !== 'resolved')
+        return reply.code(400).send({ error: 'Nothing to revenge' });
+      if (src.revenged) return reply.code(400).send({ error: 'Revenge already taken' });
+      if (src.attacker.banned) return reply.code(400).send({ error: 'That raider was banned' });
+      const av = await db.village.findUnique({ where: { userId: src.attackerId } });
+      if (!av) return reply.code(400).send({ error: 'Their village is gone' });
+      if (av.shieldUntil && av.shieldUntil.getTime() > now.getTime())
+        return reply.code(400).send({ error: 'They are shielded right now — try later' });
+      if (av.lastSeen.getTime() > now.getTime() - ONLINE_WINDOW_MS)
+        return reply.code(400).send({ error: 'They are online right now — try later' });
+      const dv = await materializeVillage(src.attackerId, now);
+      const base = villageBaseSnapshot({
+        buildings: dv.buildings.map((b) => ({ type: asType(b.type), level: b.level, gx: b.gx, gy: b.gy })),
+        gold: dv.gold,
+        mana: dv.mana,
+        keepLevel: keepLv(dv.buildings),
+        seed,
+      });
+      snapshot = { list: base.list, th: base.th, pool: base.pool };
+      defenderId = src.attackerId;
+      await db.battle.update({ where: { id: src.id }, data: { revenged: true } });
+      const battle = await db.battle.create({
+        data: { attackerId: user.id, defenderId, defenderSnapshotJson: snapshot as unknown as object, seed },
+      });
+      return {
+        battleId: battle.id,
+        seed,
+        th: snapshot.th,
+        list: snapshot.list,
+        lootG: snapshot.list.reduce((a, b) => a + b.lootG, 0),
+        lootM: snapshot.list.reduce((a, b) => a + b.lootM, 0),
+        expiresAt: now.getTime() + ENV.SCOUT_TTL_MIN * 60 * 1000,
+        village: serializeVillage(v, user, now),
+      };
+    }
     const raidsSoFar = statOf(v).raids;
     if (raidsSoFar < 3) {
       // FTUE: the first raids are always an easy level-1 camp with juicy loot,
@@ -208,6 +249,16 @@ export function battleRoutes(app: FastifyInstance): void {
     const stat = statOf(v);
     if (outcome.started) {
       stat.raids += 1;
+      if (stat.raids === 1 && user.refBy) {
+        // referral: the inviter earns when the recruit fights their first raid
+        const refV = await db.village.findUnique({ where: { userId: user.refBy } });
+        if (refV) {
+          await db.village.update({ where: { id: refV.id }, data: { war: { increment: 25 } } });
+          await db.warLedger.create({
+            data: { userId: user.refBy, delta: 25, reason: 'referral', refId: user.id },
+          });
+        }
+      }
       if (outcome.win) stat.wins += 1;
       stat.stars += outcome.stars;
       if (outcome.stars === 3) stat.threeStar += 1;
@@ -265,6 +316,36 @@ export function battleRoutes(app: FastifyInstance): void {
     };
   });
 
+  // Watch any of your battles again: the deterministic sim replays the log.
+  app.get('/battle/:id/replay', async (req, reply) => {
+    const user = await requireUser(req);
+    const { id } = req.params as { id: string };
+    const db = prisma();
+    const b = await db.battle.findUnique({
+      where: { id },
+      include: { attacker: { select: { wallet: true, id: true, name: true } } },
+    });
+    if (!b || b.status !== 'resolved' || !b.deployLogJson)
+      return reply.code(404).send({ error: 'No replay for this battle' });
+    if (b.defenderId !== user.id && b.attackerId !== user.id)
+      return reply.code(403).send({ error: 'Not your battle' });
+    const snap = b.defenderSnapshotJson as unknown as Snapshot;
+    return {
+      seed: b.seed,
+      th: snap.th,
+      list: snap.list,
+      pool: snap.pool,
+      log: b.deployLogJson,
+      stars: b.stars,
+      pct: b.pct,
+      attacker:
+        b.attacker.name ??
+        (b.attacker.wallet
+          ? b.attacker.wallet.slice(0, 4) + '…' + b.attacker.wallet.slice(-4)
+          : 'Chief-' + b.attacker.id.slice(-4)),
+    };
+  });
+
   // "You were raided" mail. ?peek=1 reads the unseen count without marking seen.
   app.get('/battle/defense-log', async (req) => {
     const user = await requireUser(req);
@@ -274,7 +355,7 @@ export function battleRoutes(app: FastifyInstance): void {
       where: { defenderId: user.id, status: 'resolved' },
       orderBy: { resolvedAt: 'desc' },
       take: 20,
-      include: { attacker: { select: { wallet: true, id: true, name: true } } },
+      include: { attacker: { select: { wallet: true, id: true, name: true, banned: true } } },
     });
     const unseen = rows.filter((r) => !r.seenByDefender).length;
     if (!peek)
@@ -286,6 +367,7 @@ export function battleRoutes(app: FastifyInstance): void {
       unseen,
       entries: rows.map((r) => ({
         id: r.id,
+        canRevenge: !r.revenged && !r.attacker.banned,
         at: r.resolvedAt?.getTime() ?? r.createdAt.getTime(),
         stars: r.stars,
         pct: r.pct,

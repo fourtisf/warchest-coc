@@ -4,15 +4,18 @@
  * loop. The server is authoritative — a light poller keeps local state fresh.
  */
 import { lerp } from '@warchest/game-core';
-import { api, hydrate } from './api';
+import { api, hydrate, serverConfig } from './api';
 import {
+  cycleReplaySpeed,
   disposeBattle,
   endBattlePressed,
   exitBattle,
   openMatchmaking,
+  openRevenge,
   rerollScout,
   startBattle,
   tickBattle,
+  watchReplay,
 } from './battle';
 import { CAM, clampCam, disposeCamera, initCamera, view } from './camera';
 import { $ } from './dom';
@@ -36,9 +39,19 @@ import {
 import { resetVillageUnits, tickVillageUnits } from './troops';
 import { world } from './world';
 import { renderHUD } from './ui/hud';
-import { fillWallet, initModals, openLeaderboard, openOv, openQuests, refreshMailBadge } from './ui/modals';
+import { closeOv, fillWallet, initModals, openLeaderboard, openOv, openQuests, refreshMailBadge } from './ui/modals';
 import { initSheet, openSheet, refreshSheet, sheetInfoArg, sheetIs } from './ui/sheet';
 import { toast } from './ui/toasts';
+
+/** Mirrors the server's daily LADDER (auth.ts) for display; server pays authoritatively. */
+const DAILY_LADDER = [5, 8, 12, 16, 20, 25, 30];
+
+function openDaily(): void {
+  const day = Math.min(G.daily.streak + 1, 7);
+  $('dailyStreak').textContent = G.daily.streak > 0 ? `Day ${day} of your streak` : 'Your first chest of the day';
+  $('dailyAmt').textContent = '◆ ' + DAILY_LADDER[Math.min(G.daily.streak, 6)];
+  openOv('daily');
+}
 
 function wireButtons(): void {
   $('shopBtn').onclick = () => {
@@ -87,6 +100,55 @@ function wireButtons(): void {
   $('mmHome').onclick = () => $('mm').classList.remove('show');
   $('mmNext').onclick = () => rerollScout();
   $('endBattle').onclick = () => endBattlePressed();
+  $('speedBtn').onclick = () => cycleReplaySpeed();
+  // defense mail actions (rows are re-rendered per open → delegate once here)
+  $('mailBody').addEventListener('click', (ev) => {
+    const el = ev.target as HTMLElement;
+    const rp = el.closest<HTMLElement>('[data-replay]');
+    if (rp) {
+      SFX.play('tap');
+      closeOv('mailModal');
+      void watchReplay(rp.dataset.replay!);
+      return;
+    }
+    const rv = el.closest<HTMLElement>('[data-revenge]');
+    if (rv) {
+      SFX.play('tap');
+      closeOv('mailModal');
+      openRevenge(rv.dataset.revenge!);
+    }
+  });
+  $('dailyClaim').onclick = () => {
+    const btn = $('dailyClaim');
+    btn.textContent = 'Opening…';
+    api
+      .dailyClaim()
+      .then((v) => {
+        hydrate(v);
+        closeOv('daily');
+        renderHUD();
+        const rw = DAILY_LADDER[Math.min(Math.max(G.daily.streak, 1) - 1, 6)];
+        toast(`🎁 Daily War Chest: +◆${rw} — day ${Math.min(Math.max(G.daily.streak, 1), 7)} streak`, 'ok');
+        SFX.play('coin');
+      })
+      .catch((e: unknown) => {
+        closeOv('daily');
+        toast(e instanceof Error ? e.message : 'Could not claim', 'warn');
+      })
+      .finally(() => {
+        btn.textContent = 'Open the Chest';
+      });
+  };
+  $('inviteBtn').onclick = () => {
+    const url = `https://${serverConfig.domain}/play?ref=${G.playerId}`;
+    const done = (): void =>
+      toast('Invite link copied — earn ◆25 when your recruit wins their first raid', 'ok');
+    if (navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(url).then(done, () => prompt('Copy your invite link:', url));
+    } else {
+      prompt('Copy your invite link:', url);
+    }
+  };
   $('resHome').onclick = () => exitBattle();
   $('placeOK').onclick = () => placeConfirm();
   $('placeNO').onclick = () => placeCancel();
@@ -97,6 +159,7 @@ function wireButtons(): void {
     SFX.play('done');
     renderHUD();
     toast('Tip: tap your Gold Mine to collect 🪙', 'ok');
+    if (G.daily.ready) setTimeout(() => openDaily(), 700);
   };
   $('introGo').onclick = () => {
     if ($('nameRow').style.display !== 'none') {
@@ -198,7 +261,9 @@ export function bootGame(root: HTMLElement): () => void {
   let disposed = false;
   const boot = async (): Promise<void> => {
     try {
-      hydrate(await api.guest());
+      // ?ref=<player id> — credit the inviter once this recruit wins a raid
+      const ref = new URLSearchParams(location.search).get('ref') ?? undefined;
+      hydrate(await api.guest(ref));
       if (!G.playerName) $('nameRow').style.display = 'block';
       renderHUD();
       updateQuestBadge();

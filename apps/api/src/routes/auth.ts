@@ -28,11 +28,20 @@ export async function stateFor(user: User): Promise<object> {
 export function authRoutes(app: FastifyInstance): void {
   // Guest session: returns the existing session's state or creates a fresh village.
   app.post('/auth/guest', async (req, reply) => {
+    const body = z.object({ ref: z.string().max(12).optional() }).parse(req.body ?? {});
     let user: User | null = null;
     const uid = await userIdFromRequest(req);
     if (uid) user = await prisma().user.findUnique({ where: { id: uid } });
     if (!user || user.banned) {
       const newId = await createUserWithVillage();
+      // referral: ?ref=<player id suffix> — reward lands on the recruit's first raid
+      if (body.ref && /^[A-Za-z0-9]{4,12}$/.test(body.ref)) {
+        const inviter = await prisma().user.findFirst({
+          where: { id: { endsWith: body.ref.toLowerCase() } },
+        });
+        if (inviter && inviter.id !== newId)
+          await prisma().user.update({ where: { id: newId }, data: { refBy: inviter.id } });
+      }
       user = await prisma().user.findUniqueOrThrow({ where: { id: newId } });
       setSessionCookie(reply, await signSession(user.id));
     }
@@ -82,6 +91,28 @@ export function authRoutes(app: FastifyInstance): void {
 
   app.get('/me', async (req) => {
     const user = await requireUser(req);
+    return stateFor(user);
+  });
+
+  // Daily war chest: escalating streak reward, 20h cooldown, 48h grace.
+  app.post('/daily/claim', async (req, reply) => {
+    const user = await requireUser(req);
+    const db = prisma();
+    const now = new Date();
+    const v = await db.village.findUniqueOrThrow({ where: { userId: user.id } });
+    const last = v.lastDailyAt?.getTime() ?? 0;
+    if (now.getTime() - last < 20 * 3600e3)
+      return reply.code(400).send({ error: 'Already claimed — come back tomorrow' });
+    const streak = now.getTime() - last < 48 * 3600e3 ? v.dailyStreak + 1 : 1;
+    const LADDER = [5, 8, 12, 16, 20, 25, 30] as const;
+    const reward = LADDER[Math.min(streak - 1, LADDER.length - 1)]!;
+    await db.village.update({
+      where: { id: v.id },
+      data: { war: { increment: reward }, lastDailyAt: now, dailyStreak: streak },
+    });
+    await db.warLedger.create({
+      data: { userId: user.id, delta: reward, reason: 'daily', refId: String(streak) },
+    });
     return stateFor(user);
   });
 

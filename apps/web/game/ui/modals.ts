@@ -232,9 +232,13 @@ export function initDefenseMail(): void {
 
 function renderMailRow(e: DefenseEntry): string {
   const stars = '★'.repeat(e.stars) + '<span style="opacity:.25">' + '★'.repeat(3 - e.stars) + '</span>';
+  const actions = `<div class="row" style="gap:8px;margin-top:8px">
+      <button class="btn ghost" data-replay="${e.id}" style="padding:6px 12px;font-size:12px">▶ Watch</button>
+      ${e.canRevenge ? `<button class="btn red" data-revenge="${e.id}" style="padding:6px 12px;font-size:12px">⚔ Revenge</button>` : ''}
+    </div>`;
   return `<div class="qst"><div class="qi">⚔️</div>
     <div class="qt"><b>${e.attacker}</b> raided you — ${Math.floor(e.pct)}% destroyed ${stars}<br>
-    <span style="color:var(--dim);font-size:12px">−🪙${fmt(e.lootG)} · −🔮${fmt(e.lootM)} · ${new Date(e.at).toLocaleString()}</span></div></div>`;
+    <span style="color:var(--dim);font-size:12px">−🪙${fmt(e.lootG)} · −🔮${fmt(e.lootM)} · ${new Date(e.at).toLocaleString()}</span>${actions}</div></div>`;
 }
 
 export async function refreshMailBadge(): Promise<void> {

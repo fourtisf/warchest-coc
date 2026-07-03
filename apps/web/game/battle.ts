@@ -14,7 +14,10 @@ import {
   baseFromList,
   fmt,
   iso,
+  type ArmyCounts,
+  type DeployLogEntry,
   type EnemyBase,
+  type SpellCounts,
 } from '@warchest/game-core';
 import { api, hydrate, withVillage, type BattleOutcomeDto } from './api';
 import { CAM, fitCam } from './camera';
@@ -37,11 +40,11 @@ interface Scout {
 
 let SCOUT: Scout | null = null;
 
-async function fetchScout(rerollFrom?: string): Promise<void> {
+async function fetchScout(rerollFrom?: string, revenge?: string): Promise<void> {
   $('mmSpin').style.display = 'block';
   $('mmScout').style.display = 'none';
   try {
-    const r = await api.scout(rerollFrom);
+    const r = await api.scout(rerollFrom, revenge);
     hydrate(r.village);
     renderHUD();
     SCOUT = { battleId: r.battleId, base: baseFromList(r.list, r.seed, r.th, r.lootG + r.lootM) };
@@ -59,6 +62,12 @@ async function fetchScout(rerollFrom?: string): Promise<void> {
 export function openMatchmaking(): void {
   openOv('mm');
   void fetchScout();
+}
+
+/** Revenge from the defense log: scout the raider's village (once per raid). */
+export function openRevenge(battleId: string): void {
+  openOv('mm');
+  void fetchScout(undefined, battleId);
 }
 
 export function rerollScout(): void {
@@ -108,9 +117,84 @@ export function startBattle(): void {
   fitCam();
 }
 
+/* ------------------------------ replay mode ------------------------------ */
+
+/** The army that was actually spent, reconstructed from the recorded log. */
+function armyFromLog(log: DeployLogEntry[]): { army: ArmyCounts; spells: SpellCounts } {
+  const army: ArmyCounts = {
+    raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0,
+  };
+  const spells: SpellCounts = { heal: 0, rage: 0, bolt: 0 };
+  for (const e of log) {
+    if (e.kind === 'deploy') army[e.troop]++;
+    else if (e.kind === 'spell') spells[e.spell]++;
+  }
+  return { army, spells };
+}
+
+/** Watch a recorded raid: same seed + same log = the exact battle, re-simulated. */
+export async function watchReplay(battleId: string): Promise<void> {
+  try {
+    const r = await api.replay(battleId);
+    closeSheet();
+    G.sel = null;
+    const base = baseFromList(r.list, r.seed, r.th, r.pool);
+    const { army, spells } = armyFromLog(r.log);
+    const sim = new BattleSim(base, army, spells);
+    // log ticks anchor wherever the attacker started acting — skip the
+    // deploy-screen idle instantly (steps are no-ops until the first deploy)
+    const firstTick = r.log.length ? r.log[0]!.tick : 0;
+    while (sim.tick < firstTick && !sim.over) {
+      sim.step();
+      sim.events.length = 0;
+    }
+    const red = document.createElement('canvas'); // no deploy zone in replays
+    red.width = red.height = 1;
+    G.battle = {
+      sim, base, sel: null, selSpell: null, red, battleId: 'replay',
+      replay: { log: r.log, idx: 0, speed: 1, attacker: r.attacker },
+    };
+    G.mode = 'battle';
+    MUSIC.setScene('battle');
+    $('hudTop').style.display = 'none';
+    $('dock').style.display = 'none';
+    $('battleTop').style.display = 'flex';
+    $('deployHint').style.display = 'none';
+    $('troopBar').style.display = 'none';
+    $('speedBtn').style.display = 'block';
+    $('speedBtn').textContent = '▶ 1×';
+    $('endBattle').textContent = 'Exit Replay';
+    updBattleHUD();
+    CAM.x = 0;
+    CAM.y = (MAP * TH) / 2;
+    fitCam();
+    toast(`▶ Watching ${r.attacker}'s raid on your village`, 'ok');
+  } catch (e) {
+    toast(e instanceof Error ? e.message : 'Replay unavailable', 'warn');
+  }
+}
+
+/** Replay speed button: 1× → 2× → 4× → 1×. */
+export function cycleReplaySpeed(): void {
+  const R = G.battle?.replay;
+  if (!R) return;
+  R.speed = R.speed === 1 ? 2 : R.speed === 2 ? 4 : 1;
+  $('speedBtn').textContent = `▶ ${R.speed}×`;
+}
+
+function endReplay(): void {
+  const B = G.battle;
+  if (!B?.replay) return;
+  const o = B.sim.outcome();
+  const who = B.replay.attacker;
+  G.battle = null;
+  exitBattleUI();
+  toast(`Replay over — ${who} scored ${'★'.repeat(o.stars) || '0★'} · ${Math.floor(o.pct)}%`, 'ok');
+}
+
 export function deployAt(wx: number, wy: number): void {
   const B = G.battle;
-  if (!B || B.sim.over) return;
+  if (!B || B.sim.over || B.replay) return;
   if (B.selSpell) {
     const s = B.selSpell;
     if (B.sim.spells[s] <= 0 || !B.sim.castSpell(s, wx, wy)) {
@@ -149,6 +233,24 @@ export function deployAt(wx: number, wy: number): void {
 export function tickBattle(): void {
   const B = G.battle;
   if (!B || B.sim.over) return;
+  const R = B.replay;
+  if (R) {
+    // feed recorded actions at their exact ticks; `speed` sim steps per frame
+    for (let i = 0; i < R.speed && !B.sim.over; i++) {
+      while (R.idx < R.log.length && R.log[R.idx]!.tick === B.sim.tick) {
+        const e = R.log[R.idx++]!;
+        if (e.kind === 'deploy') B.sim.deploy(e.troop, e.x, e.y, true);
+        else if (e.kind === 'spell') B.sim.castSpell(e.spell, e.x, e.y, true);
+        else B.sim.requestEnd();
+      }
+      if (B.sim.over) break;
+      B.sim.step();
+      drainEvents(B.sim);
+    }
+    drainEvents(B.sim);
+    updBattleHUD();
+    return;
+  }
   B.sim.step();
   drainEvents(B.sim);
   updBattleHUD();
@@ -194,7 +296,8 @@ function drainEvents(sim: BattleSim): void {
         FX.dust(e.x, e.y);
         break;
       case 'ended':
-        void submitResult();
+        if (G.battle?.replay) endReplay();
+        else void submitResult();
         break;
     }
   }
@@ -205,6 +308,11 @@ function drainEvents(sim: BattleSim): void {
 export function endBattlePressed(): void {
   const B = G.battle;
   if (!B) return;
+  if (B.replay) {
+    G.battle = null;
+    exitBattleUI();
+    return;
+  }
   if (!B.sim.started) {
     G.battle = null;
     SCOUT = null;
@@ -268,6 +376,8 @@ export function exitBattleUI(): void {
   $('battleTop').style.display = 'none';
   $('deployHint').style.display = 'none';
   $('troopBar').style.display = 'none';
+  $('speedBtn').style.display = 'none';
+  $('endBattle').textContent = 'End Battle';
   CAM.x = 0;
   CAM.y = (MAP * TH) / 2;
   fitCam();

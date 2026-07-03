@@ -10,6 +10,7 @@ import {
   BUILD,
   type ArmyCounts,
   type BuildingType,
+  type DeployLogEntry,
   type SimBuilding,
   type SpellCounts,
   type SpellType,
@@ -53,6 +54,7 @@ export interface ServerVillage {
   trainQ: Array<{ id: number; type: TroopType; finishesAt: number | null; totalS: number }>;
   questDone: Record<string, boolean>;
   stat: typeof G.stat;
+  daily: { ready: boolean; streak: number };
 }
 
 export interface ScoutResponse {
@@ -183,16 +185,18 @@ export function hydrate(payload: ServerVillage): void {
   }
   lastQuestDone = { ...payload.questDone };
   G.questDone = { ...payload.questDone };
+  G.daily = { ...payload.daily };
   rebuildOcc();
   syncVillageUnits();
 }
 
 /* ------------------------------ endpoints ------------------------------ */
 export const api = {
-  guest: () => call<ServerVillage>('POST', '/auth/guest'),
+  guest: (ref?: string) => call<ServerVillage>('POST', '/auth/guest', ref ? { ref } : {}),
   me: () => call<ServerVillage>('GET', '/me'),
   logout: () => call<{ ok: true }>('POST', '/auth/logout'),
   setName: (name: string) => call<ServerVillage>('POST', '/profile/name', { name }),
+  dailyClaim: () => call<ServerVillage>('POST', '/daily/claim', {}),
   nonce: () => call<{ nonce: string }>('GET', '/auth/nonce'),
   walletLogin: (wallet: string, signature: string, nonce: string) =>
     call<ServerVillage>('POST', '/auth/wallet', { wallet, signature, nonce }),
@@ -211,14 +215,18 @@ export const api = {
   clearObstacle: (obstacleId: number) =>
     call<ServerVillage>('POST', '/village/clear-obstacle', { obstacleId }),
 
-  scout: (rerollFrom?: string) =>
-    call<ScoutResponse>('POST', '/battle/scout', rerollFrom ? { rerollFrom } : {}),
+  scout: (rerollFrom?: string, revenge?: string) =>
+    call<ScoutResponse>('POST', '/battle/scout', {
+      ...(rerollFrom ? { rerollFrom } : {}),
+      ...(revenge ? { revenge } : {}),
+    }),
   resolve: (battleId: string, log: unknown) =>
     call<{ outcome: BattleOutcomeDto; village: ServerVillage }>(
       'POST',
       `/battle/${battleId}/resolve`,
       { log },
     ),
+  replay: (battleId: string) => call<ReplayDto>('GET', `/battle/${battleId}/replay`),
   defenseLog: () =>
     call<{ unseen: number; entries: DefenseEntry[] }>('GET', '/battle/defense-log'),
 
@@ -255,6 +263,19 @@ export interface DefenseEntry {
   pct: number;
   lootG: number;
   lootM: number;
+  attacker: string;
+  canRevenge: boolean;
+}
+
+/** Everything needed to re-run a recorded battle client-side (deterministic sim). */
+export interface ReplayDto {
+  seed: number;
+  th: number;
+  list: SimBuilding[];
+  pool: number;
+  log: DeployLogEntry[];
+  stars: number;
+  pct: number;
   attacker: string;
 }
 
