@@ -11,6 +11,8 @@ import {
   type ArmyCounts,
   type BuildingType,
   type SimBuilding,
+  type SpellCounts,
+  type SpellType,
   type TroopType,
 } from '@warchest/game-core';
 import { FX } from './fx';
@@ -47,6 +49,7 @@ export interface ServerVillage {
     clearUntil: number | null; clearTotalS: number | null;
   }>;
   army: ArmyCounts;
+  spells: SpellCounts;
   trainQ: Array<{ id: number; type: TroopType; finishesAt: number | null; totalS: number }>;
   questDone: Record<string, boolean>;
   stat: typeof G.stat;
@@ -149,6 +152,7 @@ export function hydrate(payload: ServerVillage): void {
     clearTotalS: o.clearTotalS ?? undefined,
   }));
   G.army = { ...payload.army };
+  G.spells = { ...payload.spells };
   G.trainQ = payload.trainQ.map((j) => ({
     sid: j.id,
     type: j.type,
@@ -187,6 +191,7 @@ export const api = {
   finishNow: (buildingId: number) =>
     call<ServerVillage>('POST', '/village/finish-now', { buildingId }),
   train: (troop: TroopType) => call<ServerVillage>('POST', '/village/train', { troop }),
+  brew: (spell: SpellType) => call<ServerVillage>('POST', '/village/brew', { spell }),
   rushTraining: () => call<ServerVillage>('POST', '/village/rush-training', {}),
   clearObstacle: (obstacleId: number) =>
     call<ServerVillage>('POST', '/village/clear-obstacle', { obstacleId }),

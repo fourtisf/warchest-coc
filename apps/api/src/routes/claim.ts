@@ -4,6 +4,7 @@ import { prisma } from '@warchest/db';
 import { z } from 'zod';
 import { ENV } from '../env';
 import { materializeVillage, statOf } from '../materialize';
+import { keepLv } from '../rules';
 import { serializeVillage } from '../serialize';
 import { bumpDaily, getDaily, store } from '../store';
 import { requireUser } from './auth';
@@ -25,6 +26,15 @@ export function claimRoutes(app: FastifyInstance): void {
     const now = new Date();
     const v = await materializeVillage(user.id, now);
     if (v.war < amount) return reply.code(400).send({ error: 'Not enough $WAR' });
+    if (keepLv(v.buildings) < ENV.CLAIM_MIN_KEEP)
+      return reply
+        .code(400)
+        .send({ error: `Claims unlock at Keep Level ${ENV.CLAIM_MIN_KEEP}` });
+    const ageH = (now.getTime() - user.createdAt.getTime()) / 3600e3;
+    if (ageH < ENV.CLAIM_MIN_AGE_H)
+      return reply.code(400).send({
+        error: `Claims unlock ${ENV.CLAIM_MIN_AGE_H}h after your village is founded`,
+      });
 
     const db = prisma();
     const fee = Math.floor((amount * ENV.CLAIM_FEE_BPS) / 10000);

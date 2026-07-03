@@ -4,12 +4,13 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '@warchest/db';
 import {
   NEXT_COST,
+  SPELL_ORDER,
+  TROOP_ORDER,
   baseFromList,
   clamp,
   genEnemy,
   simulateBattle,
   villageBaseSnapshot,
-  type ArmyCounts,
   type DeployLogEntry,
   type SimBuilding,
 } from '@warchest/game-core';
@@ -17,7 +18,7 @@ import { z } from 'zod';
 import { ENV } from '../env';
 import { materializeVillage, statOf } from '../materialize';
 import { checkQuests } from '../quests';
-import { RuleError, asType, capOf, keepLv } from '../rules';
+import { SPELL_COLUMN, armyOf, asType, capOf, keepLv, spellsOf } from '../rules';
 import { serializeVillage } from '../serialize';
 import { bumpDaily, getDaily } from '../store';
 import { requireUser } from './auth';
@@ -77,7 +78,17 @@ export function battleRoutes(app: FastifyInstance): void {
 
     let snapshot: Snapshot;
     let defenderId: string | null = null;
-    if (candidates.length) {
+    const raidsSoFar = statOf(v).raids;
+    if (raidsSoFar < 3) {
+      // FTUE: the first raids are always an easy level-1 camp with juicy loot,
+      // whatever the player's Keep level (CoC-style soft landing).
+      const base = genEnemy(seed, 1);
+      for (const b of base.list) {
+        b.lootG = Math.floor(b.lootG * 1.5);
+        b.lootM = Math.floor(b.lootM * 1.5);
+      }
+      snapshot = { list: base.list, th: base.th, pool: base.pool };
+    } else if (candidates.length) {
       const pick = candidates[randomInt(0, candidates.length)]!;
       const dv = await materializeVillage(pick.userId, now);
       const base = villageBaseSnapshot({
@@ -121,7 +132,14 @@ export function battleRoutes(app: FastifyInstance): void {
         z.object({
           tick: z.number().int().min(0),
           kind: z.literal('deploy'),
-          troop: z.enum(['raider', 'sniper', 'bruiser', 'gargoyle']),
+          troop: z.enum(TROOP_ORDER as [string, ...string[]]),
+          x: z.number().finite(),
+          y: z.number().finite(),
+        }),
+        z.object({
+          tick: z.number().int().min(0),
+          kind: z.literal('spell'),
+          spell: z.enum(SPELL_ORDER as [string, ...string[]]),
           x: z.number().finite(),
           y: z.number().finite(),
         }),
@@ -151,12 +169,11 @@ export function battleRoutes(app: FastifyInstance): void {
       return reply.code(400).send({ error: 'pre-deploy idle too long' });
 
     const v = await materializeVillage(user.id, now);
-    const army: ArmyCounts = {
-      raider: v.army.raider, sniper: v.army.sniper, bruiser: v.army.bruiser, gargoyle: v.army.gargoyle,
-    };
+    const army = armyOf(v.army);
+    const spells = spellsOf(v.army);
     const snap = battle.defenderSnapshotJson as unknown as Snapshot;
     const base = baseFromList(snap.list, battle.seed, snap.th, snap.pool);
-    const outcome = simulateBattle(base, army, log);
+    const outcome = simulateBattle(base, army, log, spells);
 
     // consume troops, credit loot (clamped to caps), $WAR with daily soft cap, trophies
     const capG = capOf(v.buildings, 'g', now), capM = capOf(v.buildings, 'm', now);
@@ -181,10 +198,10 @@ export function battleRoutes(app: FastifyInstance): void {
     await db.army.update({
       where: { villageId: v.id },
       data: {
-        raider: outcome.armyLeft.raider,
-        sniper: outcome.armyLeft.sniper,
-        bruiser: outcome.armyLeft.bruiser,
-        gargoyle: outcome.armyLeft.gargoyle,
+        ...outcome.armyLeft,
+        [SPELL_COLUMN.heal]: outcome.spellsLeft.heal,
+        [SPELL_COLUMN.rage]: outcome.spellsLeft.rage,
+        [SPELL_COLUMN.bolt]: outcome.spellsLeft.bolt,
       },
     });
     const stat = statOf(v);

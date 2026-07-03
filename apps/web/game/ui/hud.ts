@@ -1,5 +1,5 @@
 /** Top HUD, battle HUD and troop bar — ported verbatim from the prototype. */
-import { TROOP, TROOP_ORDER, clamp, fmt, mmss } from '@warchest/game-core';
+import { SPELL, SPELL_ORDER, TROOP, TROOP_ORDER, clamp, fmt, mmss } from '@warchest/game-core';
 import { getIcon } from '../art/icons';
 import { $ } from '../dom';
 import { SFX } from '../sfx';
@@ -38,7 +38,8 @@ export function buildTroopBar(): void {
     const n = B.sim.army[t];
     if (n <= 0 && G.army[t] <= 0) continue;
     const c = document.createElement('div');
-    c.className = 'tCard' + (B.sel === t ? ' sel' : '') + (n <= 0 ? ' empty' : '');
+    c.className =
+      'tCard' + (B.sel === t && !B.selSpell ? ' sel' : '') + (n <= 0 ? ' empty' : '');
     c.innerHTML = `<span class="cnt">${n}</span><div class="lb">${TROOP[t].n}</div>`;
     const ic = getIcon('t', t);
     const im = document.createElement('img');
@@ -49,6 +50,27 @@ export function buildTroopBar(): void {
     c.onclick = () => {
       if (n > 0) {
         B.sel = t;
+        B.selSpell = null;
+        buildTroopBar();
+        SFX.play('tap');
+      }
+    };
+    bar.appendChild(c);
+  }
+  for (const s of SPELL_ORDER) {
+    const n = B.sim.spells[s];
+    if (n <= 0 && G.spells[s] <= 0) continue;
+    const c = document.createElement('div');
+    c.className = 'tCard' + (B.selSpell === s ? ' sel' : '') + (n <= 0 ? ' empty' : '');
+    c.innerHTML = `<span class="cnt">${n}</span><div class="lb">${SPELL[s].n}</div>`;
+    const em = document.createElement('div');
+    em.textContent = SPELL[s].emoji;
+    em.style.cssText =
+      'position:absolute;top:0;left:0;width:100%;height:54px;display:flex;align-items:center;justify-content:center;font-size:30px;pointer-events:none';
+    c.prepend(em);
+    c.onclick = () => {
+      if (n > 0) {
+        B.selSpell = s;
         buildTroopBar();
         SFX.play('tap');
       }

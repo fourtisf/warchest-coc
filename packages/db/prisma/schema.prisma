@@ -84,8 +84,16 @@ model Army {
   village   Village @relation(fields: [villageId], references: [id], onDelete: Cascade)
   raider    Int     @default(0)
   sniper    Int     @default(0)
+  bomber    Int     @default(0)
+  imp       Int     @default(0)
   bruiser   Int     @default(0)
+  warlock   Int     @default(0)
   gargoyle  Int     @default(0)
+  mender    Int     @default(0)
+  /// brewed battle spells (heal / rage / bolt)
+  spellHeal Int     @default(0)
+  spellRage Int     @default(0)
+  spellBolt Int     @default(0)
 }
 
 model TrainJob {

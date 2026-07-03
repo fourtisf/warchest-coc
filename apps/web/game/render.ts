@@ -1,5 +1,7 @@
 /** Main renderer — ported verbatim from the prototype's render(). */
-import { BUILD, TROOP, TROOP_ORDER, mulberry32, tstr, type TroopType } from '@warchest/game-core';
+import {
+  BUILD, SPELL, TH, TICKS_PER_SEC, TROOP, TROOP_ORDER, TW, mulberry32, tstr, type TroopType,
+} from '@warchest/game-core';
 import { ART } from './art/buildings';
 import type { DrawableBuilding, DrawableUnit } from './art/drawable';
 import { I, bShadow, hpBar, pad, prism, woodPost } from './art/helpers';
@@ -127,6 +129,23 @@ export function render(): void {
   const inBattle = G.mode === 'battle' || G.mode === 'battle_deploy';
   if (inBattle && G.battle && !G.battle.sim.over)
     ctx.drawImage(G.battle.red, -ground.ox, -ground.oy);
+  // active spell rings (heal / rage), under everything that walks
+  if (inBattle && G.battle) {
+    for (const sp of G.battle.sim.activeSpells) {
+      const S = SPELL[sp.spell];
+      const p = I(sp.x, sp.y);
+      const left = (sp.untilTick - G.battle.sim.tick) / TICKS_PER_SEC;
+      const a = Math.min(0.5, Math.max(0.12, left / (S.dur ?? 1))) * (0.8 + Math.sin(G.t * 6) * 0.2);
+      const col = sp.spell === 'rage' ? '255,110,70' : '80,230,160';
+      ctx.fillStyle = `rgba(${col},${a * 0.25})`;
+      ctx.strokeStyle = `rgba(${col},${a})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.ellipse(p.x, p.y, S.radius * (TW / 2), S.radius * (TH / 2), 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
   // selection under buildings
   if (!inBattle && G.sel) {
     const b = G.buildings.find((x) => x.id === G.sel);
@@ -137,6 +156,8 @@ export function render(): void {
   const items: RenderItem[] = [];
   for (const b of list) {
     if (b.dead) continue;
+    // enemy traps are invisible during a raid (your own village shows them)
+    if (inBattle && BUILD[b.type].cat === 'trap') continue;
     if (G.place && G.place.moving === b.id) continue;
     (b as { _list?: ReadonlyArray<DrawableBuilding> })._list = list;
     items.push({ k: 'b', o: b, z: b.gx + b.gy + BUILD[b.type].s });

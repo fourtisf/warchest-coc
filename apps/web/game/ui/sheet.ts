@@ -2,12 +2,16 @@
 import {
   BUILD,
   SHOP_ORDER,
+  SPELL,
+  SPELL_CAP,
+  SPELL_ORDER,
   TROOP,
   TROOP_ORDER,
   fmt,
   tstr,
   type BuildingType,
   type ResourceKey,
+  type SpellType,
   type TroopType,
 } from '@warchest/game-core';
 import { prodPerSec } from '../api';
@@ -27,6 +31,7 @@ import {
   nowMs,
 } from '../state';
 import {
+  brewSpell,
   canUpgrade,
   clearObstacle,
   finishNow,
@@ -143,6 +148,26 @@ export function renderSheet(): void {
       </div>`;
     }
     h += '</div>';
+    {
+      const brewed = G.spells.heal + G.spells.rage + G.spells.bolt;
+      h += `<div class="row" style="margin:16px 0 10px"><b style="font-size:13px">🧪 Spells · ${brewed}/${SPELL_CAP}</b><div class="capBar"><i style="width:${(brewed / SPELL_CAP) * 100}%;background:linear-gradient(90deg,#7a3bd8,#c9a6ff)"></i></div></div><div class="grid">`;
+      for (const s of SPELL_ORDER) {
+        const S = SPELL[s];
+        const locked = keepLv() < S.unlock;
+        h += `<div class="card ${locked ? 'locked' : ''} ${SHEET_HL === s ? 'hl' : ''}">
+          <span class="cnt" style="position:absolute;top:6px;right:6px;background:#c9a6ff;color:#241040;font-weight:900;font-size:11px;padding:2px 8px;border-radius:9px">×${G.spells[s]}</span>
+          <div style="height:74px;display:flex;align-items:center;justify-content:center;font-size:40px;border-radius:9px;background:radial-gradient(circle at 50% 30%,#2d2347,#160f26)">${S.emoji}</div>
+          <div class="nm">${S.emoji} ${S.n}</div>
+          <div class="meta">${S.d}</div>
+          ${
+            locked
+              ? `<div class="meta" style="color:var(--bad)">Keep L${S.unlock} required</div>`
+              : `<button class="btn mana" data-act="brew" data-arg="${s}">Brew ${costHTML('m', S.cost)}</button>`
+          }
+        </div>`;
+      }
+      h += '</div>';
+    }
     if (G.trainQ.length) {
       const totRem = G.trainQ.reduce((a, q) => a + q.tLeft, 0);
       const rush = uiFinishCost(totRem);
@@ -255,6 +280,7 @@ export function initSheet(): void {
     const act = el.dataset.act, arg = el.dataset.arg;
     if (act === 'buy') startPlace(arg as BuildingType);
     else if (act === 'train') trainTroop(arg as TroopType);
+    else if (act === 'brew') brewSpell(arg as SpellType);
     else if (act === 'upg') {
       const b = G.buildings.find((x) => x.id === Number(arg));
       if (b) startUpgrade(b);

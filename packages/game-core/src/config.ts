@@ -3,7 +3,14 @@
  * (/reference/warchest-prototype.html, `CFG`). Balance numbers must not drift
  * from the prototype; production-only knobs live at the bottom of this file.
  */
-import type { BuildingDef, BuildingType, TroopDef, TroopType } from './types';
+import type {
+  BuildingDef,
+  BuildingType,
+  SpellDef,
+  SpellType,
+  TroopDef,
+  TroopType,
+} from './types';
 
 /** Isometric tile width/height in px at zoom 1, map size in tiles, decorative pad. */
 export const TW = 64;
@@ -136,6 +143,20 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
     lv: [{ hp: 260, c: 200, t: 0 }],
     d: 'Hires one more builder. Paid in $WAR.',
   },
+  bomb: {
+    n: 'Hidden Bomb', s: 1, cat: 'trap', res: 'g', emoji: '💥', max: [2, 3, 4, 5, 6],
+    lv: [
+      { hp: 1, c: 120, t: 0, dmg: 45, spl: 1.3 },
+      { hp: 1, c: 600, t: 0, dmg: 70, spl: 1.3 },
+      { hp: 1, c: 2400, t: 0, dmg: 100, spl: 1.4 },
+    ],
+    d: 'Invisible to attackers. Explodes when ground troops step close.',
+  },
+  spring: {
+    n: 'Spring Trap', s: 1, cat: 'trap', res: 'g', emoji: '🌀', max: [1, 2, 3, 4, 5],
+    lv: [{ hp: 1, c: 300, t: 0 }],
+    d: 'Invisible to attackers. Launches a ground troop clean off the map.',
+  },
 };
 
 export const TROOP: Record<TroopType, TroopDef> = {
@@ -149,22 +170,65 @@ export const TROOP: Record<TroopType, TroopDef> = {
     cost: 90, tt: 3, fly: 0, pref: 'any', unlock: 1,
     d: 'Ranged. Shoots over walls from a distance.',
   },
+  bomber: {
+    n: 'Bomber', emoji: '🧨', house: 2, hp: 65, dmg: 55, rate: 1, rng: 0.5, spd: 2.6,
+    cost: 160, tt: 4, fly: 0, pref: 'wall', unlock: 2,
+    suicide: true, wallMul: 10, splash: 1.4,
+    d: 'Runs at the nearest wall and detonates. Massive wall damage, one use.',
+  },
+  imp: {
+    n: 'Imp', emoji: '👺', house: 1, hp: 55, dmg: 8, rate: 0.7, rng: 1.0, spd: 3.2,
+    cost: 80, tt: 3, fly: 1, pref: 'any', unlock: 2,
+    d: 'Cheap flyer. Swarms over walls; cannons and mortars miss it.',
+  },
   bruiser: {
     n: 'Bruiser', emoji: '🛡️', house: 5, hp: 780, dmg: 32, rate: 1.2, rng: 0.7, spd: 1.25,
     cost: 450, tt: 9, fly: 0, pref: 'def', unlock: 2,
     d: 'Walking wall. Targets defenses first.',
+  },
+  warlock: {
+    n: 'Warlock', emoji: '🔥', house: 4, hp: 130, dmg: 26, rate: 1.4, rng: 3.2, spd: 1.9,
+    cost: 380, tt: 8, fly: 0, pref: 'any', unlock: 3, splash: 1.1,
+    d: 'Hurls exploding fireballs that splash across buildings.',
   },
   gargoyle: {
     n: 'Gargoyle', emoji: '🦇', house: 2, hp: 130, dmg: 14, rate: 0.8, rng: 1.3, spd: 2.7,
     cost: 280, tt: 6, fly: 1, pref: 'any', unlock: 3,
     d: "Flyer. Ignores walls; cannons and mortars can't touch it.",
   },
+  mender: {
+    n: 'Mender', emoji: '🕊️', house: 5, hp: 260, dmg: 45, rate: 1.2, rng: 2.5, spd: 1.9,
+    cost: 550, tt: 10, fly: 1, pref: 'heal', unlock: 4, heals: true,
+    d: 'Flying healer. Deals no damage — keeps your army standing instead.',
+  },
 };
 
-export const TROOP_ORDER: readonly TroopType[] = ['raider', 'sniper', 'bruiser', 'gargoyle'];
-export const SHOP_ORDER: readonly BuildingType[] = [
-  'cannon', 'arrow', 'mortar', 'wall', 'mine', 'well', 'vault', 'tank', 'barracks', 'camp', 'hut',
+export const TROOP_ORDER: readonly TroopType[] = [
+  'raider', 'sniper', 'bomber', 'imp', 'bruiser', 'warlock', 'gargoyle', 'mender',
 ];
+export const SHOP_ORDER: readonly BuildingType[] = [
+  'cannon', 'arrow', 'mortar', 'wall', 'bomb', 'spring',
+  'mine', 'well', 'vault', 'tank', 'barracks', 'camp', 'hut',
+];
+
+/** Battle spells — brewed with Mana, cast anywhere on the battlefield. */
+export const SPELL: Record<SpellType, SpellDef> = {
+  heal: {
+    n: 'Healing Rune', emoji: '💚', cost: 300, unlock: 2, radius: 2.2, hps: 60, dur: 6,
+    d: 'Restores troops inside the ring for 6 seconds.',
+  },
+  rage: {
+    n: 'Rage Rune', emoji: '😡', cost: 400, unlock: 3, radius: 2.2, dmgMul: 1.6, spdMul: 1.5, dur: 8,
+    d: 'Troops inside the ring hit 60% harder and move 50% faster.',
+  },
+  bolt: {
+    n: 'Skybolt', emoji: '⚡', cost: 500, unlock: 4, radius: 1.2, dmg: 220,
+    d: 'Instant lightning strike. Melts a defense or a chunk of wall.',
+  },
+};
+export const SPELL_ORDER: readonly SpellType[] = ['heal', 'rage', 'bolt'];
+/** Max spells carried into battle (all types combined). */
+export const SPELL_CAP = 3;
 
 export const BASE_CAP = 1200;
 export const BATTLE_TIME = 180;
@@ -211,14 +275,20 @@ export const REAL_BUILD_TIMES: Record<BuildingType, readonly number[]> = {
   barracks: [10, 60, 900, 7200, 28800],
   camp: [10, 60, 900, 7200, 28800],
   hut: [0],
+  bomb: [0, 0, 0],
+  spring: [0],
 };
 
 /** Real troop training times for production (P1+), seconds. */
 export const REAL_TRAIN_TIMES: Record<TroopType, number> = {
   raider: 20,
   sniper: 30,
+  bomber: 45,
+  imp: 15,
   bruiser: 120,
+  warlock: 150,
   gargoyle: 180,
+  mender: 240,
 };
 
 /** Real obstacle-clearing times (a builder works on it), seconds. */

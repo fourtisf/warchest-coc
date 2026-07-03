@@ -14,11 +14,24 @@ export type BuildingType =
   | 'wall'
   | 'barracks'
   | 'camp'
-  | 'hut';
+  | 'hut'
+  | 'bomb'
+  | 'spring';
 
-export type TroopType = 'raider' | 'sniper' | 'bruiser' | 'gargoyle';
+export type TroopType =
+  | 'raider'
+  | 'sniper'
+  | 'bomber'
+  | 'imp'
+  | 'bruiser'
+  | 'warlock'
+  | 'gargoyle'
+  | 'mender';
 
-export type BuildingCategory = 'core' | 'res' | 'def' | 'army';
+export type SpellType = 'heal' | 'rage' | 'bolt';
+export type SpellCounts = Record<SpellType, number>;
+
+export type BuildingCategory = 'core' | 'res' | 'def' | 'army' | 'trap';
 
 /** Per-level stats. Optional fields apply only to some building kinds. */
 export interface BuildingLevel {
@@ -76,10 +89,38 @@ export interface TroopDef {
   /** training time, seconds (prototype-accelerated) */
   tt: number;
   fly: 0 | 1;
-  pref: 'any' | 'def';
+  pref: 'any' | 'def' | 'wall' | 'heal';
   /** barracks level required */
   unlock: number;
   d: string;
+  /** splash radius on impact (warlock) */
+  splash?: number;
+  /** suicide attacker: explodes on first strike (bomber) */
+  suicide?: boolean;
+  /** damage multiplier vs walls (bomber) */
+  wallMul?: number;
+  /** healing per pulse instead of damage (mender) */
+  heals?: boolean;
+}
+
+export interface SpellDef {
+  n: string;
+  emoji: string;
+  /** brew cost (mana) */
+  cost: number;
+  /** Keep level required */
+  unlock: number;
+  radius: number;
+  d: string;
+  /** heal per second (heal) */
+  hps?: number;
+  /** duration seconds (heal/rage) */
+  dur?: number;
+  /** damage/speed multipliers (rage) */
+  dmgMul?: number;
+  spdMul?: number;
+  /** instant damage (bolt) */
+  dmg?: number;
 }
 
 export type ArmyCounts = Record<TroopType, number>;
@@ -118,6 +159,17 @@ export interface SimTroop {
   dead?: boolean;
   /** presentational attack-swing timer (renderer decays it) */
   swing: number;
+  /** waypoints toward the target when pathing around walls */
+  path?: Array<{ x: number; y: number }>;
+  /** ticks until the path is recomputed */
+  repath?: number;
+}
+
+export interface ActiveSpell {
+  spell: SpellType;
+  x: number;
+  y: number;
+  untilTick: number;
 }
 
 export type Projectile =
@@ -132,6 +184,8 @@ export type Projectile =
       dmg: number;
       tgtBId?: number;
       tgtUId?: number;
+      /** splash radius on building impact (warlock fireball) */
+      spl?: number;
       dead?: boolean;
     }
   | {
@@ -173,6 +227,7 @@ export interface EnemyBase {
 /** One attacker action in the deploy log. Positions are Math.fround-quantized world coords. */
 export type DeployLogEntry =
   | { tick: number; kind: 'deploy'; troop: TroopType; x: number; y: number }
+  | { tick: number; kind: 'spell'; spell: SpellType; x: number; y: number }
   | { tick: number; kind: 'end' };
 
 export interface BattleOutcome {
@@ -191,11 +246,16 @@ export interface BattleOutcome {
   ticks: number;
   /** troops left after the battle (deploys consumed) */
   armyLeft: ArmyCounts;
+  /** spells left after the battle (casts consumed) */
+  spellsLeft: SpellCounts;
 }
 
 /** Events emitted by the battle sim for the client to render FX / SFX. */
 export type SimEvent =
   | { k: 'deploy'; x: number; y: number }
+  | { k: 'spell'; spell: SpellType; x: number; y: number }
+  | { k: 'trap'; kind: 'bomb' | 'spring'; x: number; y: number }
+  | { k: 'heal'; x: number; y: number }
   | { k: 'melee-hit'; x: number; y: number }
   | { k: 'proj'; kind: 'arrow' | 'ball' | 'shell'; from: 'troop' | 'defense'; bid?: number }
   | { k: 'building-hit'; x: number; y: number }

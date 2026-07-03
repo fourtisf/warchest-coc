@@ -11,7 +11,7 @@
     "setup:devnet": "tsx src/setup-devnet.ts",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@fastify/cookie": "^9.4.0",

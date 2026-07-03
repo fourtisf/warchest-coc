@@ -169,6 +169,32 @@ full-stack browser e2e.
 nginx routes `/api` straight to Fastify (:8787); Next.js also carries an
 `/api` rewrite so local dev works with two processes and no nginx.
 
+### D20. Combat Depth Update — spells, traps, pathing, 4 new units
+CoC-parity combat, all inside the deterministic sim so client and server
+replay bit-identically:
+- **Units**: bomber (suicide wall-breaker, ×10 vs walls, splash), imp (cheap
+  swarm flyer), warlock (ranged splash over buildings), mender (flying
+  healer; never damages, so battles with only menders run to the clock).
+- **Spells** (brewed with Mana at the Keep, rack of 3): Healing Rune (HoT
+  ring), Rage Rune (dmg+speed ring), Skybolt (instant AoE). Casts are log
+  entries (`kind:'spell'`) validated in the server replay like deploys.
+- **Traps**: Hidden Bomb + Spring Trap. Placed like buildings but excluded
+  from the sim's occupancy grid, deploy-zone bake, destruction % and target
+  acquisition; the battle renderer hides them. They are always armed (no
+  CoC re-arm chore). Caveat noted: the scout payload necessarily contains
+  trap positions (the client must simulate them), so they're hidden at the
+  render layer, not the network layer.
+- **Pathing**: ground troops BFS around walls (fixed E/W/S/N neighbor order
+  = deterministic); if the detour exceeds 2.5× the direct line or no route
+  exists, they retarget the blocking wall and smash through — walls finally
+  matter without ever soft-locking a troop.
+- **FTUE raids**: a player's first 3 raids always scout an easy level-1
+  camp with 1.5× loot, regardless of Keep level.
+- **Claim gates**: claims additionally require Keep ≥ `CLAIM_MIN_KEEP` (3)
+  and account age ≥ `CLAIM_MIN_AGE_H` (72h) — anti-bot-farm.
+- **DB**: migration `2_combat_depth` adds Army columns for the 4 units and
+  brewed spell counts.
+
 ## Verification (P1–P4)
 - Local full-stack e2e in the sandbox (PostgreSQL 16 + Redis + API + Next +
   Chromium): guest boot → collect (quest c1 auto-credited server-side) →

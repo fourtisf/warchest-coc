@@ -31,7 +31,8 @@ pnpm build        # all packages
 - **P2 — Real battles** ✅ matchmaking against real village snapshots (procedural fallback), server-side deploy-log re-simulation, shields, trophies, defense log ("you were raided").
 - **P3 — On-chain** ✅ claim API (min/fee/daily cap/rate limit) + PM2 worker; `CLAIM_MODE=mock` out of the box, `pnpm --filter @warchest/api setup:devnet` mints devnet $WAR and flips to real SPL payouts.
 - **P4 — Meta** ✅ season leaderboard (top 100 + around-me), $WAR ledger endpoint, admin API (ban / adjust / overview via `ADMIN_WALLET`).
-- **Next**: content depth (more troops/spells/traps), clans, revenge raids, PWA.
+- **P5 — Combat Depth** ✅ 8 troops (＋bomber/imp/warlock/mender), 3 brewable spells (heal/rage/skybolt), hidden traps (bomb/spring), wall-aware BFS pathing, FTUE easy first raids, claim anti-farm gates. All deterministic — server replays spells & traps bit-identically.
+- **Next**: replay viewer, clans, revenge raids, PWA/push.
 
 Deploy: `deploy/vps-deploy.sh` (nivar cleanup → Postgres/Redis → migrate → PM2 ×3 → nginx + TLS).
 Architecture decisions: see [DECISIONS.md](./DECISIONS.md).

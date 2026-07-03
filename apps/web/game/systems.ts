@@ -6,6 +6,8 @@
 import {
   BUILD,
   QUESTS,
+  SPELL,
+  SPELL_CAP,
   TROOP,
   MAP,
   OBSTACLE_COST,
@@ -14,6 +16,7 @@ import {
   fmt,
   type BuildingType,
   type QuestView,
+  type SpellType,
   type TroopType,
 } from '@warchest/game-core';
 import { api, nowMs, prodPerSec, realBuildSeconds, realTrainSeconds, withVillage } from './api';
@@ -157,6 +160,33 @@ export function trainTroop(t: TroopType): void {
   void (async () => {
     if (await withVillage(api.train(t))) {
       SFX.play('tap');
+      renderHUD();
+      refreshSheet();
+    } else SFX.play('err');
+  })();
+}
+
+export function brewSpell(s: SpellType): void {
+  const S = SPELL[s];
+  if (keepLv() < S.unlock) {
+    toast(`Requires Keep Level ${S.unlock}`, 'warn');
+    SFX.play('err');
+    return;
+  }
+  if (G.spells.heal + G.spells.rage + G.spells.bolt >= SPELL_CAP) {
+    toast(`Spell rack is full (${SPELL_CAP} max)`, 'warn');
+    SFX.play('err');
+    return;
+  }
+  if (G.res.m < S.cost) {
+    toast('Not enough Mana', 'warn');
+    SFX.play('err');
+    return;
+  }
+  void (async () => {
+    if (await withVillage(api.brew(s))) {
+      SFX.play('mana');
+      toast(`${S.emoji} ${S.n} brewed`, 'ok');
       renderHUD();
       refreshSheet();
     } else SFX.play('err');

@@ -7,7 +7,11 @@ import {
   type DeployLogEntry,
 } from '../src';
 
-const ARMY: ArmyCounts = { raider: 8, sniper: 4, bruiser: 1, gargoyle: 2 };
+const army = (a: Partial<ArmyCounts>): ArmyCounts => ({
+  raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0, ...a,
+});
+
+const ARMY: ArmyCounts = army({ raider: 8, sniper: 4, bruiser: 1, gargoyle: 2 });
 
 /** A scripted raid: staggered deploys on two sides of the base. */
 const LOG: DeployLogEntry[] = [
@@ -78,7 +82,7 @@ describe('battle determinism', () => {
       { tick: 0, kind: 'deploy', troop: 'raider', x: 20.4, y: 6.2 },
       { tick: 30, kind: 'end' },
     ];
-    const r = simulateBattle(genEnemy(7, 2), { raider: 1, sniper: 0, bruiser: 0, gargoyle: 0 }, log);
+    const r = simulateBattle(genEnemy(7, 2), army({ raider: 1 }), log);
     expect(r.started).toBe(true);
     expect(r.ticks).toBeLessThanOrEqual(31);
   });
@@ -113,7 +117,7 @@ describe('battle determinism', () => {
 
   it('invalid deploys (red zone / no troops) are rejected and unrecorded', () => {
     const base = genEnemy(9, 3);
-    const sim = new BattleSim(base, { raider: 1, sniper: 0, bruiser: 0, gargoyle: 0 });
+    const sim = new BattleSim(base, army({ raider: 1 }));
     expect(sim.deploy('raider', 20, 20)).toBe(false); // on top of the keep
     expect(sim.deploy('sniper', 5, 5)).toBe(false); // none in army
     expect(sim.deploy('raider', 5, 5)).toBe(true);
@@ -125,14 +129,14 @@ describe('battle determinism', () => {
 describe('battle rules', () => {
   it('war formula: stars*8 + keep 10 + full-clear 7', () => {
     // brute-force a strong army to raze a level-1 base
-    const army: ArmyCounts = { raider: 40, sniper: 20, bruiser: 4, gargoyle: 10 };
+    const bigArmy: ArmyCounts = army({ raider: 40, sniper: 20, bruiser: 4, gargoyle: 10 });
     const log: DeployLogEntry[] = [];
     let t = 0;
     for (let i = 0; i < 40; i++) log.push({ tick: (t += 3), kind: 'deploy', troop: 'raider', x: 12 + (i % 16) * 0.9, y: 8.2 });
     for (let i = 0; i < 20; i++) log.push({ tick: (t += 3), kind: 'deploy', troop: 'sniper', x: 12 + (i % 16), y: 30.6 });
     for (let i = 0; i < 4; i++) log.push({ tick: (t += 3), kind: 'deploy', troop: 'bruiser', x: 8.5, y: 16 + i });
     for (let i = 0; i < 10; i++) log.push({ tick: (t += 3), kind: 'deploy', troop: 'gargoyle', x: 31.5, y: 16 + (i % 8) });
-    const r = simulateBattle(genEnemy(555, 1), army, log);
+    const r = simulateBattle(genEnemy(555, 1), bigArmy, log);
     expect(r.stars).toBe(3);
     expect(Math.round(r.pct)).toBe(100);
     expect(r.warEarned).toBe(3 * 8 + 10 + 7);
@@ -145,7 +149,7 @@ describe('battle rules', () => {
     const base = genEnemy(31, 1); // L1 base: 1 cannon, 0 arrow towers
     expect(base.list.some((b) => b.type === 'arrow')).toBe(false);
     const log: DeployLogEntry[] = [{ tick: 0, kind: 'deploy', troop: 'gargoyle', x: 5, y: 5 }];
-    const r = simulateBattle(base, { raider: 0, sniper: 0, bruiser: 0, gargoyle: 1 }, log);
+    const r = simulateBattle(base, army({ gargoyle: 1 }), log);
     expect(r.pct).toBeGreaterThan(0); // it destroyed things unharmed until timeout
   });
 });

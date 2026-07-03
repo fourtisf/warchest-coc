@@ -7,10 +7,15 @@ import {
   REAL_BUILD_TIMES,
   REAL_CLEAR_TIMES,
   REAL_TRAIN_TIMES,
+  SPELL,
   TROOP,
+  TROOP_ORDER,
   canPlace as canPlaceOn,
   occOf,
+  type ArmyCounts,
   type BuildingType,
+  type SpellCounts,
+  type SpellType,
   type TroopType,
 } from '@warchest/game-core';
 import { ENV } from './env';
@@ -22,6 +27,22 @@ export const asType = (t: string): BuildingType => {
 export const asTroop = (t: string): TroopType => {
   if (!(t in TROOP)) throw new Error(`bad troop type ${t}`);
   return t as TroopType;
+};
+export const asSpell = (s: string): SpellType => {
+  if (!(s in SPELL)) throw new Error(`bad spell type ${s}`);
+  return s as SpellType;
+};
+
+/** Army DB row → sim counts / spell counts. */
+export const armyOf = (a: Army): ArmyCounts => ({
+  raider: a.raider, sniper: a.sniper, bomber: a.bomber, imp: a.imp,
+  bruiser: a.bruiser, warlock: a.warlock, gargoyle: a.gargoyle, mender: a.mender,
+});
+export const spellsOf = (a: Army): SpellCounts => ({
+  heal: a.spellHeal, rage: a.spellRage, bolt: a.spellBolt,
+});
+export const SPELL_COLUMN: Record<SpellType, 'spellHeal' | 'spellRage' | 'spellBolt'> = {
+  heal: 'spellHeal', rage: 'spellRage', bolt: 'spellBolt',
 };
 
 /** Real seconds for building/upgrading to `level`, honoring TIME_SCALE. */
@@ -69,11 +90,8 @@ export function armyCap(buildings: readonly Building[], now: Date): number {
 }
 
 export function housingUsed(army: Army, trainJobs: readonly TrainJob[]): number {
-  let u =
-    army.raider * TROOP.raider.house +
-    army.sniper * TROOP.sniper.house +
-    army.bruiser * TROOP.bruiser.house +
-    army.gargoyle * TROOP.gargoyle.house;
+  let u = 0;
+  for (const t of TROOP_ORDER) u += army[t] * TROOP[t].house;
   for (const j of trainJobs) u += TROOP[asTroop(j.troopType)].house;
   return u;
 }

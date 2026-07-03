@@ -21,6 +21,8 @@ import {
   type BuildingType,
   type EnemyBase,
   type ResourceKey,
+  type SpellCounts,
+  type SpellType,
   type TroopType,
 } from '@warchest/game-core';
 import { toast } from './ui/toasts';
@@ -98,6 +100,8 @@ export interface BattleUI {
   battleId: string;
   /** currently selected troop card */
   sel: TroopType | null;
+  /** currently selected spell card (overrides troop selection while set) */
+  selSpell: SpellType | null;
   /** red no-deploy overlay, baked once per battle */
   red: HTMLCanvasElement;
 }
@@ -131,6 +135,7 @@ export interface GState {
   obstacles: Obstacle[];
   jobs: BuildJob[];
   army: ArmyCounts;
+  spells: SpellCounts;
   trainQ: TrainJob[];
   stat: GameStat;
   questDone: Record<string, boolean>;
@@ -152,7 +157,10 @@ export function freshState(): GState {
     buildings: [],
     obstacles: [],
     jobs: [],
-    army: { raider: 0, sniper: 0, bruiser: 0, gargoyle: 0 },
+    army: {
+      raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0,
+    },
+    spells: { heal: 0, rage: 0, bolt: 0 },
     trainQ: [],
     stat: {
       trained: 0, wins: 0, raids: 0, warClaimed: 0, gCollected: 0, mCollected: 0,

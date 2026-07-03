@@ -7,6 +7,7 @@
 import {
   BattleSim,
   MAP,
+  SPELL,
   TH,
   TROOP_ORDER,
   TW,
@@ -69,7 +70,7 @@ export function startBattle(): void {
   closeOv('mm');
   closeSheet();
   G.sel = null;
-  const sim = new BattleSim(SCOUT.base, { ...G.army });
+  const sim = new BattleSim(SCOUT.base, { ...G.army }, { ...G.spells });
   // red no-deploy overlay, baked once over the ground canvas space
   const ground = groundOrThrow();
   const red = document.createElement('canvas');
@@ -91,7 +92,7 @@ export function startBattle(): void {
         rc.fill();
       }
   const firstAvail = TROOP_ORDER.find((t) => G.army[t] > 0) ?? 'raider';
-  G.battle = { sim, base: SCOUT.base, sel: firstAvail, red, battleId: SCOUT.battleId };
+  G.battle = { sim, base: SCOUT.base, sel: firstAvail, selSpell: null, red, battleId: SCOUT.battleId };
   G.mode = 'battle_deploy';
   $('hudTop').style.display = 'none';
   $('dock').style.display = 'none';
@@ -108,6 +109,20 @@ export function startBattle(): void {
 export function deployAt(wx: number, wy: number): void {
   const B = G.battle;
   if (!B || B.sim.over) return;
+  if (B.selSpell) {
+    const s = B.selSpell;
+    if (B.sim.spells[s] <= 0 || !B.sim.castSpell(s, wx, wy)) {
+      SFX.play('err');
+      return;
+    }
+    if (G.mode === 'battle_deploy') {
+      G.mode = 'battle';
+      $('deployHint').style.display = 'none';
+    }
+    if (B.sim.spells[s] <= 0) B.selSpell = null; // last one — back to troops
+    buildTroopBar();
+    return;
+  }
   const t = B.sel;
   if (!t || B.sim.army[t] <= 0) {
     SFX.play('err');
@@ -143,6 +158,18 @@ function drainEvents(sim: BattleSim): void {
       case 'deploy':
         SFX.play('deploy');
         FX.dust(e.x, e.y);
+        break;
+      case 'spell':
+        SFX.play(e.spell === 'bolt' ? 'mortar' : 'mana');
+        FX.float(e.x, e.y, SPELL[e.spell].emoji, e.spell === 'rage' ? '#ff7a5c' : '#c9a6ff');
+        break;
+      case 'trap':
+        SFX.play(e.kind === 'bomb' ? 'mortar' : 'deploy');
+        FX.dust(e.x, e.y);
+        if (e.kind === 'spring') FX.float(e.x, e.y, '🌀', '#8fd0ff');
+        break;
+      case 'heal':
+        FX.float(e.x, e.y, '＋', '#3fe0a3');
         break;
       case 'melee-hit':
       case 'building-hit':

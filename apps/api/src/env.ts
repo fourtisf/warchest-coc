@@ -28,6 +28,9 @@ export const ENV = {
   CLAIM_FEE_BPS: num(process.env.CLAIM_FEE_BPS, 500),
   CLAIM_DAILY_CAP: num(process.env.CLAIM_DAILY_CAP, 500),
   EARN_DAILY_CAP: num(process.env.EARN_DAILY_CAP, 400),
+  /** anti-farm gates: claims need a real village, not a day-one bot */
+  CLAIM_MIN_KEEP: num(process.env.CLAIM_MIN_KEEP, 3),
+  CLAIM_MIN_AGE_H: num(process.env.CLAIM_MIN_AGE_H, 72),
 
   // Solana (P3)
   SOLANA_CLUSTER: process.env.SOLANA_CLUSTER ?? 'devnet',

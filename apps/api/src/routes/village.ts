@@ -5,6 +5,8 @@ import {
   BUILD,
   MAX_BUILDERS,
   OBSTACLE_COST,
+  SPELL,
+  SPELL_CAP,
   TROOP,
   clamp,
   finishNowCostReal,
@@ -14,8 +16,11 @@ import { foldStored, materializeVillage, statOf, storedNow, type FullVillage } f
 import { checkQuests } from '../quests';
 import {
   RuleError,
+  SPELL_COLUMN,
   activeJobs,
   armyCap,
+  armyOf,
+  asSpell,
   asTroop,
   asType,
   barracksSpeed,
@@ -231,11 +236,28 @@ export function villageRoutes(app: FastifyInstance): void {
       stat.tTypes[t] = (stat.tTypes[t] ?? 0) + 1;
       await db.trainJob.delete({ where: { id: j.id } });
     }
-    await db.army.update({
-      where: { villageId: v.id },
-      data: { raider: v.army.raider, sniper: v.army.sniper, bruiser: v.army.bruiser, gargoyle: v.army.gargoyle },
-    });
+    await db.army.update({ where: { villageId: v.id }, data: armyOf(v.army) });
     await saveStat(v, stat);
+  });
+
+  act('brew', z.object({ spell: z.string() }), async (v, body: { spell: string }) => {
+    const s = (() => {
+      try {
+        return asSpell(body.spell);
+      } catch {
+        throw new RuleError('bad', 'No such spell');
+      }
+    })();
+    const S = SPELL[s];
+    if (keepLv(v.buildings) < S.unlock)
+      throw new RuleError('unlock', `Requires Keep Level ${S.unlock}`);
+    const total = v.army.spellHeal + v.army.spellRage + v.army.spellBolt;
+    if (total >= SPELL_CAP) throw new RuleError('cap', `Spell rack is full (${SPELL_CAP} max)`);
+    await payRes(v, 'm', S.cost, 'spend', `brew:${s}`);
+    await prisma().army.update({
+      where: { villageId: v.id },
+      data: { [SPELL_COLUMN[s]]: { increment: 1 } },
+    });
   });
 
   act('clear-obstacle', z.object({ obstacleId: z.number().int() }), async (v, body: { obstacleId: number }, now) => {

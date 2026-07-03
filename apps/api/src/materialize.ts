@@ -5,7 +5,7 @@
  */
 import { prisma, type Army, type Building, type Obstacle, type QuestState, type TrainJob, type Village } from '@warchest/db';
 import { BUILD, clamp } from '@warchest/game-core';
-import { asTroop, asType, barracksSpeed, isBusy, prodPerSec, trainSeconds } from './rules';
+import { armyOf, asTroop, asType, barracksSpeed, isBusy, prodPerSec, trainSeconds } from './rules';
 
 export interface FullVillage extends Village {
   buildings: Building[];
@@ -121,10 +121,7 @@ export async function materializeVillage(userId: string, now = new Date()): Prom
       await db.trainJob.delete({ where: { id: head.id } });
       v.trainJobs.shift();
     }
-    await db.army.update({
-      where: { villageId: v.id },
-      data: { raider: v.army.raider, sniper: v.army.sniper, bruiser: v.army.bruiser, gargoyle: v.army.gargoyle },
-    });
+    await db.army.update({ where: { villageId: v.id }, data: armyOf(v.army) });
   }
 
   await db.village.update({

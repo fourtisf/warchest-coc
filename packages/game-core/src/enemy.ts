@@ -101,5 +101,24 @@ export function genEnemy(seed: number, keepLevel: number): EnemyBase {
             ? 0.3
             : 0.2 / Math.max(1, list.filter((x) => x.type === 'well').length)),
     );
+  // hidden traps inside the compound (drawn after all legacy rolls so the
+  // building layout for a given seed is unchanged). The sim keeps traps out
+  // of the occupancy grid and deploy-zone bake; the renderer hides them.
+  const nBombs = Math.min(BUILD.bomb.max[th - 1] ?? 2, 1 + th);
+  let placedBombs = 0;
+  for (let i = 0; i < nBombs * 4 && placedBombs < nBombs; i++) {
+    const a = rng() * Math.PI * 2, r = 3.5 + rng() * 4;
+    if (put('bomb', Math.round(20 + Math.cos(a) * r), Math.round(20 + Math.sin(a) * r), Math.max(1, th - 2)))
+      placedBombs++;
+  }
+  if (th >= 3) {
+    const nSprings = Math.min(BUILD.spring.max[th - 1] ?? 1, 2);
+    let placedSprings = 0;
+    for (let i = 0; i < nSprings * 4 && placedSprings < nSprings; i++) {
+      const a = rng() * Math.PI * 2, r = 3 + rng() * 3;
+      if (put('spring', Math.round(20 + Math.cos(a) * r), Math.round(20 + Math.sin(a) * r), 1))
+        placedSprings++;
+    }
+  }
   return { list, occ, th, pool, seed };
 }

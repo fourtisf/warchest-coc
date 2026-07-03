@@ -815,4 +815,43 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
       c.restore();
     }
   },
+  bomb(c, b, t) {
+    // hidden bomb (visible only in your own village): half-buried iron sphere on a dirt mound
+    const p = I(b.gx + 0.5, b.gy + 0.5);
+    const s = 1;
+    bShadow(c, b, s);
+    c.fillStyle = '#a8905c';
+    c.beginPath(); c.ellipse(p.x, p.y - 1, 15, 7.5, 0, 0, 7); c.fill();
+    c.strokeStyle = 'rgba(126,102,52,.7)'; c.lineWidth = 1.5; c.stroke();
+    c.fillStyle = '#23262e';
+    c.beginPath(); c.arc(p.x, p.y - 8, 8, 0, 7); c.fill();
+    c.strokeStyle = 'rgba(0,0,0,.6)'; c.lineWidth = 1.2; c.stroke();
+    c.fillStyle = 'rgba(255,255,255,.16)';
+    c.beginPath(); c.arc(p.x - 2.6, p.y - 10.8, 2.6, 0, 7); c.fill();
+    c.strokeStyle = '#8a6a3a'; c.lineWidth = 1.6;
+    c.beginPath(); c.moveTo(p.x + 3, p.y - 15); c.quadraticCurveTo(p.x + 6, p.y - 19, p.x + 4.5, p.y - 21.5); c.stroke();
+    const sp = 0.6 + Math.sin(t * 18 + b.id) * 0.4;
+    c.fillStyle = `rgba(255,${(170 + sp * 60) | 0},40,${0.65 + sp * 0.3})`;
+    c.beginPath(); c.arc(p.x + 4.5, p.y - 22, 1.7 + sp, 0, 7); c.fill();
+    lvlPips(c, b, s);
+  },
+  spring(c, b, t) {
+    // spring trap: iron plate with a coiled spring, faintly quivering
+    const p = I(b.gx + 0.5, b.gy + 0.5);
+    const s = 1;
+    bShadow(c, b, s);
+    const q = Math.sin(t * 9 + b.id) * 0.6;
+    prism(c, b.gx + 0.16, b.gy + 0.16, 0.68, 0.68, 3, '#8f97a5', '#4a515e', '#6a7280');
+    c.strokeStyle = '#c8ccd4'; c.lineWidth = 2;
+    c.beginPath();
+    for (let i = 0; i < 4; i++) {
+      const y = p.y - 6 - i * 3 - (i ? q : 0);
+      c.moveTo(p.x - 6 + i * 0.8, y);
+      c.quadraticCurveTo(p.x, y - 2.6, p.x + 6 - i * 0.8, y);
+    }
+    c.stroke();
+    c.fillStyle = '#5c6270';
+    c.beginPath(); c.ellipse(p.x, p.y - 19 - q, 7, 3, 0, 0, 7); c.fill();
+    c.strokeStyle = 'rgba(25,28,36,.7)'; c.lineWidth = 1.2; c.stroke();
+  },
 };
