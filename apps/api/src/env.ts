@@ -18,10 +18,12 @@ export const ENV = {
    */
   TIME_SCALE: num(process.env.TIME_SCALE, 1),
   /**
-   * The prototype's CFG production rates are ~180× demo-accelerated
-   * (keep L2: 20s demo ↔ 1h real). Real production = rate / PROD_ACCEL * TIME_SCALE.
+   * Real production = rate / PROD_ACCEL * TIME_SCALE. The prototype's CFG
+   * rates are demo-accelerated; 180 mapped them to slow CoC-like trickle
+   * (mine L1 ≈ 200/h). Owner-directed pacing: 45 → collectors visibly fill
+   * during a play session (mine L1 ≈ 800/h, L3 ≈ 1.6k/h).
    */
-  PROD_ACCEL: num(process.env.PROD_ACCEL, 180),
+  PROD_ACCEL: num(process.env.PROD_ACCEL, 45),
 
   // $WAR economy
   CLAIM_MIN: num(process.env.CLAIM_MIN, 100),

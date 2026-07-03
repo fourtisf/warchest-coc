@@ -91,7 +91,7 @@ async function call<T>(method: 'GET' | 'POST', path: string, body?: unknown): Pr
 export let serverOffset = 0;
 
 export let serverConfig: ServerConfig = {
-  domain: 'warchest.fun', timeScale: 1, prodAccel: 180, claimMin: 100, claimFeeBps: 500, claimDailyCap: 500,
+  domain: 'warchest.fun', timeScale: 1, prodAccel: 45, claimMin: 100, claimFeeBps: 500, claimDailyCap: 500,
 };
 
 export const nowMs = (): number => Date.now() + serverOffset;
