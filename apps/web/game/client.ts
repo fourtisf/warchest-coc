@@ -72,11 +72,6 @@ function wireButtons(): void {
     }
     if (G.music) MUSIC.start();
   };
-  $('resetBtn').onclick = () => {
-    if (confirm('Reset the village? This signs you out — a new warcamp starts fresh.')) {
-      void api.logout().finally(() => location.reload());
-    }
-  };
   $('raidBtn').onclick = () => {
     SFX.play('tap');
     let tot = 0;
