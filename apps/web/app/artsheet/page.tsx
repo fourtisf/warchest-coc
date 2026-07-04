@@ -19,6 +19,27 @@ export default function ArtSheetPage() {
   useEffect(() => {
     const cv = ref.current;
     if (!cv) return;
+    // solo mode (?solo=airdef&lv=10&px=760): one building, huge, transparent —
+    // used to bake crisp marketing/promo art straight from the game renderer
+    const qs = new URLSearchParams(location.search);
+    const solo = qs.get('solo') as BuildingType | null;
+    if (solo && BUILD[solo]) {
+      const px = Number(qs.get('px') ?? 760);
+      const lv = Math.min(Math.max(Number(qs.get('lv') ?? 10), 1), BUILD[solo].lv.length);
+      cv.width = px;
+      cv.height = px;
+      const g = cv.getContext('2d')!;
+      const s = BUILD[solo].s;
+      const sc = (px / 220) * Number(qs.get('z') ?? 1);
+      g.setTransform(sc, 0, 0, sc, px / 2, px * Number(qs.get('cy') ?? 0.72));
+      const b: DrawableBuilding = { id: 7, type: solo, gx: -s / 2, gy: -s / 2, level: lv, hp: 1, stored: 0, _list: [] };
+      try {
+        ART[solo](g, b, 0.5);
+      } catch (e) {
+        console.error(solo, e);
+      }
+      return;
+    }
     const CW = 160, CHT = 200;
     cv.width = CW * 10;
     cv.height = CHT * TYPES.length;
