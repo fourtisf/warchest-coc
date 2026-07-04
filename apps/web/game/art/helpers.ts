@@ -225,6 +225,73 @@ export function lvlPips(c: CanvasRenderingContext2D, b: DrawableBuilding, s: num
   }
 }
 
+/**
+ * Full re-theme per prestige tier — every major structure swaps material, not
+ * just an accent: Timber (1-2) → Granite/slate (3-4) → Royal sandstone/gold
+ * (5-6) → Obsidian/crimson (7-8) → Mythic marble/arcane (9-10).
+ */
+export interface TierTheme {
+  /** main body prism [top, left, right] */
+  wall: readonly [string, string, string];
+  /** darker structural variant: bases, plinths, upper works */
+  wallB: readonly [string, string, string];
+  /** gabled roof [left, right, ridge] */
+  roof: readonly [string, string, string];
+  /** turret cone [main, shade] */
+  cone: readonly [string, string];
+  /** metallic trim: rims, finials, crests */
+  trim: string;
+  /** cloth: banners, flags, pennants */
+  cloth: string;
+}
+
+export function tierTheme(lv: number): TierTheme {
+  if (lv >= 9)
+    return {
+      wall: ['#f0edf8', '#aca3c8', '#d4cde6'],
+      wallB: ['#ddd6ec', '#948bb4', '#bfb7d6'],
+      roof: ['#8a76c8', '#5a4796', '#cfc4ff'],
+      cone: ['#8a76c8', '#5a4796'],
+      trim: '#cfc4ff',
+      cloth: '#7a5cc8',
+    };
+  if (lv >= 7)
+    return {
+      wall: ['#5f5870', '#332e40', '#494256'],
+      wallB: ['#4c4659', '#282331', '#3a3547'],
+      roof: ['#5c2733', '#38141d', '#8a3a4a'],
+      cone: ['#6e2c3c', '#421722'],
+      trim: '#ff7a5c',
+      cloth: '#c62f2f',
+    };
+  if (lv >= 5)
+    return {
+      wall: ['#e8d5aa', '#ab8c58', '#cbb27f'],
+      wallB: ['#d6c193', '#977a48', '#b9a06b'],
+      roof: ['#e0b23a', '#a8781a', '#ffd977'],
+      cone: ['#e0b23a', '#a8781a'],
+      trim: '#ffd977',
+      cloth: '#e9b93c',
+    };
+  if (lv >= 3)
+    return {
+      wall: ['#c9d0da', '#7e8794', '#a7afbc'],
+      wallB: ['#b2bac6', '#6a7280', '#909aa8'],
+      roof: ['#4f6e8e', '#3a5570', '#7fa3c6'],
+      cone: ['#4f6e8e', '#3a5570'],
+      trim: '#e9b93c',
+      cloth: '#3f7fbf',
+    };
+  return {
+    wall: ['#d8d1bf', '#96897b', '#b7ac99'],
+    wallB: ['#c3bba8', '#857b6c', '#a89d8a'],
+    roof: ['#c8402f', '#a33325', '#f07a5a'],
+    cone: ['#c8402f', '#a33325'],
+    trim: '#e9b93c',
+    cloth: '#c62f2f',
+  };
+}
+
 /** Prestige aura for high-tier buildings: embers from L7, arcane runes from L9. */
 export function prestigeFx(
   c: CanvasRenderingContext2D,

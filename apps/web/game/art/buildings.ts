@@ -8,7 +8,7 @@ import { G, capOf, idxOfHut } from '../state';
 import { wallAt, type BuildingArtFn } from './drawable';
 import {
   I, lp, poly, edge, prism, faceLines, roof, roofCone,
-  bShadow, pad, lvlPips, flame, woodPost, coin,
+  bShadow, pad, lvlPips, flame, woodPost, coin, tierTheme,
 } from './helpers';
 
 /** Roof/canvas colors by prestige tier: base → gold (5-6) → crimson obsidian (7-8) → mythic (9-10). */
@@ -32,15 +32,18 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const W = 44 + (lv - 1) * 6;
     const TU = 58 + (lv - 1) * 8;
     const cone = 13 + (lv - 1) * 1.4;
+    // ...and completely re-themes per prestige tier: timber → granite/slate →
+    // royal gold → obsidian/crimson → mythic marble (walls, turrets, roofs)
+    const TT = tierTheme(lv);
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
-    prism(c, b.gx + 0.35, b.gy + 0.35, 3.3, 3.3, 10, '#cfc8b6', '#8f8674', '#b0a794');
-    const M = prism(c, b.gx + 0.55, b.gy + 0.55, 2.9, 2.9, W, '#d8d1bf', '#96897b', '#b7ac99', 10);
+    prism(c, b.gx + 0.35, b.gy + 0.35, 3.3, 3.3, 10, TT.wallB[0], TT.wallB[1], TT.wallB[2]);
+    const M = prism(c, b.gx + 0.55, b.gy + 0.55, 2.9, 2.9, W, TT.wall[0], TT.wall[1], TT.wall[2], 10);
     faceLines(c, M.f, M.e, M.F, M.E, 5, 'rgba(0,0,0,.10)', 1.2);
     faceLines(c, M.e, M.b, M.E, M.B, 5, 'rgba(0,0,0,.08)', 1.2);
-    prism(c, b.gx + 0.45, b.gy + 0.45, 3.1, 3.1, 8, '#c3bba8', '#857b6c', '#a89d8a', 10 + W);
+    prism(c, b.gx + 0.45, b.gy + 0.45, 3.1, 3.1, 8, TT.wallB[0], TT.wallB[1], TT.wallB[2], 10 + W);
     const t1 = I(b.gx + 0.45, b.gy + 3.55), t2 = I(b.gx + 3.55, b.gy + 3.55), t3 = I(b.gx + 3.55, b.gy + 0.45);
-    c.strokeStyle = '#e9b93c';
+    c.strokeStyle = TT.trim;
     c.lineWidth = 2.2;
     c.beginPath();
     c.moveTo(t1.x, t1.y - 10 - W);
@@ -48,24 +51,23 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     c.lineTo(t3.x, t3.y - 10 - W);
     c.stroke();
     for (const dd of [[0.3, 0.3], [3.0, 0.3], [0.3, 3.0], [3.0, 3.0]] as const) {
-      prism(c, b.gx + dd[0], b.gy + dd[1], 0.7, 0.7, TU, '#ded7c5', '#9a8f80', '#bdb2a0', 6);
+      prism(c, b.gx + dd[0], b.gy + dd[1], 0.7, 0.7, TU, TT.wall[0], TT.wall[1], TT.wall[2], 6);
       const rp = I(b.gx + dd[0] + 0.35, b.gy + dd[1] + 0.35);
-      roofCone(c, rp.x, rp.y - 6 - TU, cone, cone + 4);
+      roofCone(c, rp.x, rp.y - 6 - TU, cone, cone + 4, TT.cone[0], TT.cone[1]);
       if (lv >= 4) {
         // gilded finials on every turret
-        c.fillStyle = '#ffd24a';
+        c.fillStyle = lv >= 9 ? '#cfc4ff' : '#ffd24a';
         c.beginPath();
         c.arc(rp.x, rp.y - 6 - TU - cone - 5, 2.6, 0, 7);
         c.fill();
-        c.strokeStyle = '#8a5c00';
+        c.strokeStyle = lv >= 9 ? '#5a3f9a' : '#8a5c00';
         c.lineWidth = 1;
         c.stroke();
       }
     }
-    prism(c, b.gx + 1.25, b.gy + 1.25, 1.5, 1.5, 18, '#d8d1bf', '#96897b', '#b7ac99', 18 + W);
-    // crown roof climbs the prestige tiers: red → gold → crimson → mythic
-    const KR = tierRoof(lv, ['#c8402f', '#a33325', '#f07a5a'] as const);
-    roof(c, b.gx + 1.25, b.gy + 1.25, 1.5, 1.5, 36 + W, 24 + (lv - 1) * 2, KR[0], KR[1], KR[2]);
+    prism(c, b.gx + 1.25, b.gy + 1.25, 1.5, 1.5, 18, TT.wall[0], TT.wall[1], TT.wall[2], 18 + W);
+    // crown roof rides the same tier theme as the rest of the castle
+    roof(c, b.gx + 1.25, b.gy + 1.25, 1.5, 1.5, 36 + W, 24 + (lv - 1) * 2, TT.roof[0], TT.roof[1], TT.roof[2]);
     const gf = I(b.gx + 0.55, b.gy + 3.45), ge = I(b.gx + 3.45, b.gy + 3.45);
     for (const pt of [gf, ge]) pt.y -= 10;
     const gp = lp(gf, ge, 0.5);
@@ -103,7 +105,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
       const wt = 10 + W;
       for (const u of [0.32, 0.68]) {
         const bp = lp(gf, ge, u);
-        c.fillStyle = lv >= 5 ? '#e9b93c' : '#c62f2f';
+        c.fillStyle = TT.cloth;
         c.beginPath();
         c.moveTo(bp.x - 4, bp.y - wt + 2);
         c.lineTo(bp.x + 4, bp.y - wt + 2);
@@ -131,7 +133,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const bx = pp.x, by = pp.y - 20 - W;
     woodPost(c, bx, by, bx, by - 28, 3.6);
     const wv = Math.sin(t * 3 + (b.id || 1)) * 4;
-    c.fillStyle = '#c62f2f';
+    c.fillStyle = TT.cloth;
     c.beginPath();
     c.moveTo(bx, by - 28);
     c.quadraticCurveTo(bx + 11, by - 26 + wv * 0.4, bx + 20, by - 24 + wv);
@@ -288,16 +290,19 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const lv = b.level;
     // the basin rises and the mana pool sits higher every level
     const BH = 9 + (lv - 1) * 3.5;
+    // the basin stonework re-themes per tier
+    const TT = tierTheme(lv);
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
-    prism(c, b.gx + 0.45, b.gy + 0.45, 2.1, 2.1, BH, '#b6bcc9', '#6d7383', '#929aa9');
+    if (lv >= 3) prism(c, b.gx + 0.45, b.gy + 0.45, 2.1, 2.1, BH, TT.wallB[0], TT.wallB[1], TT.wallB[2]);
+    else prism(c, b.gx + 0.45, b.gy + 0.45, 2.1, 2.1, BH, '#b6bcc9', '#6d7383', '#929aa9');
     const P1 = I(b.gx + 0.75, b.gy + 0.75), P2 = I(b.gx + 2.25, b.gy + 0.75),
       P3 = I(b.gx + 2.25, b.gy + 2.25), P4 = I(b.gx + 0.75, b.gy + 2.25);
     for (const p of [P1, P2, P3, P4]) p.y -= BH;
     poly(c, [P1, P2, P3, P4], '#5a2f86');
     if (lv >= 5) {
       // gilded basin rim
-      c.strokeStyle = '#e9b93c';
+      c.strokeStyle = TT.trim;
       c.lineWidth = 2;
       c.beginPath();
       c.moveTo(P1.x, P1.y);
@@ -440,9 +445,19 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const LH = CH + 9;
     bShadow(c, b, s);
     pad(c, b, s);
-    const B1 = prism(c, b.gx + 0.5 - vg * 0.045, b.gy + 0.8 - vg * 0.035, 2.0 + vg * 0.09, 1.5 + vg * 0.07, CH, lv >= 4 ? '#a8792f' : '#c98f3e', lv >= 4 ? '#654a1c' : '#7d5a24', lv >= 4 ? '#8a6226' : '#a3742f');
+    // the strongbox re-themes at the high tiers: obsidian chest (7-8), marble reliquary (9-10)
+    const vBody: readonly [string, string, string] =
+      lv >= 9 ? ['#ddd6ec', '#948bb4', '#bfb7d6']
+      : lv >= 7 ? ['#4c4659', '#282331', '#3a3547']
+      : lv >= 4 ? ['#a8792f', '#654a1c', '#8a6226']
+      : ['#c98f3e', '#7d5a24', '#a3742f'];
+    const vLid: readonly [string, string, string] =
+      lv >= 9 ? ['#b7a6e8', '#7a5cc8', '#9a86d8']
+      : lv >= 7 ? ['#8a3a4a', '#4a1a24', '#6e2c3c']
+      : ['#d9a34a', '#8a642a', '#b8853a'];
+    const B1 = prism(c, b.gx + 0.5 - vg * 0.045, b.gy + 0.8 - vg * 0.035, 2.0 + vg * 0.09, 1.5 + vg * 0.07, CH, vBody[0], vBody[1], vBody[2]);
     faceLines(c, B1.f, B1.F, B1.e, B1.E, 5, 'rgba(0,0,0,.13)', 1.1);
-    prism(c, b.gx + 0.42 - vg * 0.045, b.gy + 0.72 - vg * 0.035, 2.16 + vg * 0.09, 1.66 + vg * 0.07, 9, '#d9a34a', '#8a642a', '#b8853a', CH);
+    prism(c, b.gx + 0.42 - vg * 0.045, b.gy + 0.72 - vg * 0.035, 2.16 + vg * 0.09, 1.66 + vg * 0.07, 9, vLid[0], vLid[1], vLid[2], CH);
     const tA = I(b.gx + 0.42 - vg * 0.045, b.gy + 0.72 - vg * 0.035), tB = I(b.gx + 2.58 + vg * 0.045, b.gy + 0.72 - vg * 0.035);
     c.strokeStyle = 'rgba(255,235,180,.55)';
     c.lineWidth = 2;
@@ -484,8 +499,8 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     }
     for (const u of [0.26, 0.74]) {
       const p1 = lp(B1.f, B1.e, u - 0.045), p2 = lp(B1.f, B1.e, u + 0.045);
-      poly(c, [p1, p2, { x: p2.x, y: p2.y - LH }, { x: p1.x, y: p1.y - LH }], lv >= 5 ? '#7d5406' : '#2e3540');
-      c.fillStyle = lv >= 5 ? '#ffd24a' : '#8f97a5';
+      poly(c, [p1, p2, { x: p2.x, y: p2.y - LH }, { x: p1.x, y: p1.y - LH }], lv >= 9 ? '#5a3f9a' : lv >= 5 ? '#7d5406' : '#2e3540');
+      c.fillStyle = lv >= 9 ? '#cfc4ff' : lv >= 5 ? '#ffd24a' : '#8f97a5';
       c.beginPath();
       c.arc((p1.x + p2.x) / 2, p1.y - 6, 1.4, 0, 7);
       c.arc((p1.x + p2.x) / 2, p1.y - LH + 6, 1.4, 0, 7);
@@ -516,9 +531,12 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const lv = b.level;
     // the reservoir tower rises with every level
     const GH = 32 + (lv - 1) * 7;
+    // the reservoir plinth re-themes per tier
+    const TT = tierTheme(lv);
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
-    prism(c, b.gx + 0.62, b.gy + 0.62, 1.76, 1.76, 5, '#a97a44', '#6f4a22', '#8a5c2b');
+    if (lv >= 3) prism(c, b.gx + 0.62, b.gy + 0.62, 1.76, 1.76, 5, TT.wallB[0], TT.wallB[1], TT.wallB[2]);
+    else prism(c, b.gx + 0.62, b.gy + 0.62, 1.76, 1.76, 5, '#a97a44', '#6f4a22', '#8a5c2b');
     const fr = clamp(G.res.m / Math.max(1, capOf('m')), 0, 1);
     const hh = 6 + fr * (GH - 8);
     prism(c, b.gx + 0.83, b.gy + 0.83, 1.34, 1.34, hh, '#c07af0', '#7a3fb8', '#9e5cd8', 5, false);
@@ -621,11 +639,13 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const barrelLen = 22 + mg * 2.6;
     const BT = 8 + mg * 1.1;
     const WR = 8.2 + mg * 1.1;
+    // the gun platform re-themes per tier: timber → granite → gold → obsidian → marble
+    const TT = tierTheme(lv);
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
     const pg = Math.min(mg, 5);
     const PF = lv >= 3
-      ? prism(c, b.gx + 0.55 - pg * 0.06, b.gy + 0.55 - pg * 0.06, 1.9 + pg * 0.12, 1.9 + pg * 0.12, 6 + mg * 1.6, '#b6bcc9', '#6d7383', '#929aa9')
+      ? prism(c, b.gx + 0.55 - pg * 0.06, b.gy + 0.55 - pg * 0.06, 1.9 + pg * 0.12, 1.9 + pg * 0.12, 6 + mg * 1.6, TT.wallB[0], TT.wallB[1], TT.wallB[2])
       : prism(c, b.gx + 0.55 - pg * 0.06, b.gy + 0.55 - pg * 0.06, 1.9 + pg * 0.12, 1.9 + pg * 0.12, 6 + mg * 1.6, '#a97a44', '#6f4a22', '#8a5c2b');
     faceLines(c, PF.f, PF.F, PF.e, PF.E, 4, 'rgba(0,0,0,.14)', 1.1);
     for (const w of [I(b.gx + 1.02, b.gy + 2.12), I(b.gx + 2.12, b.gy + 1.02)]) {
@@ -656,7 +676,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     c.translate(cp.x, cp.y - 19);
     c.rotate(aim);
     const rec = (b.recoil ?? 0) > 0 ? b.recoil! * 6 : 0;
-    c.fillStyle = lv >= 4 ? '#1a1e26' : '#232833';
+    c.fillStyle = lv >= 9 ? '#352b52' : lv >= 4 ? '#1a1e26' : '#232833';
     c.beginPath();
     c.moveTo(-rec - 4, -BT);
     c.lineTo(barrelLen - rec, -BT);
@@ -702,18 +722,22 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     // the watchtower climbs with every level
     const SHH = 34 + (lv - 1) * 9;
     const TP = 20 + SHH;
+    // the watchtower re-themes per tier alongside its climb
+    const TT = tierTheme(lv);
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
-    const SB = prism(c, b.gx + 0.75, b.gy + 0.75, 1.5, 1.5, 20, '#cfc8b6', '#8f8674', '#b0a794');
+    const SB = lv >= 3
+      ? prism(c, b.gx + 0.75, b.gy + 0.75, 1.5, 1.5, 20, TT.wallB[0], TT.wallB[1], TT.wallB[2])
+      : prism(c, b.gx + 0.75, b.gy + 0.75, 1.5, 1.5, 20, '#cfc8b6', '#8f8674', '#b0a794');
     faceLines(c, SB.f, SB.e, SB.F, SB.E, 3, 'rgba(0,0,0,.10)', 1.1);
-    const SH = lv >= 4
-      ? prism(c, b.gx + 0.9, b.gy + 0.9, 1.2, 1.2, SHH, '#cfc8b6', '#8f8674', '#b0a794', 20)
+    const SH = lv >= 3
+      ? prism(c, b.gx + 0.9, b.gy + 0.9, 1.2, 1.2, SHH, TT.wall[0], TT.wall[1], TT.wall[2], 20)
       : prism(c, b.gx + 0.9, b.gy + 0.9, 1.2, 1.2, SHH, '#a97a44', '#6f4a22', '#8a5c2b', 20);
     faceLines(c, SH.f, SH.F, SH.e, SH.E, 4, 'rgba(0,0,0,.14)', 1);
     if (lv >= 2) {
       // regiment banner down the shaft
       const bp = lp(SH.f, SH.e, 0.5);
-      c.fillStyle = lv >= 5 ? '#e9b93c' : '#3e8a4c';
+      c.fillStyle = lv >= 5 ? TT.cloth : '#3e8a4c';
       c.beginPath();
       c.moveTo(bp.x - 4, bp.y - TP + 6);
       c.lineTo(bp.x + 4, bp.y - TP + 6);
@@ -742,7 +766,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     if (lv >= 4) {
       // gilded platform edging
       const e1 = I(b.gx + 0.72, b.gy + 2.28), e2 = I(b.gx + 2.28, b.gy + 2.28), e3 = I(b.gx + 2.28, b.gy + 0.72);
-      c.strokeStyle = '#e9b93c';
+      c.strokeStyle = TT.trim;
       c.lineWidth = 1.8;
       c.beginPath();
       c.moveTo(e1.x, e1.y - TP - 7);
@@ -805,6 +829,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     const s = 3;
     const lv = b.level;
     const R = 13.5 + Math.min(lv - 1, 6) * 2.4;
+    const TT = tierTheme(lv);
     bShadow(c, b, s);
     pad(c, b, s, 'stone');
     for (const a2 of [0.4, 1.1, 1.9, 2.7, 3.5, 4.5]) {
@@ -837,7 +862,8 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
         c.stroke();
       }
     }
-    prism(c, b.gx + 1.05, b.gy + 1.05, 0.9, 0.9, 5 + dz, '#454d5c', '#23272f', '#343b48');
+    if (lv >= 3) prism(c, b.gx + 1.05, b.gy + 1.05, 0.9, 0.9, 5 + dz, TT.wallB[0], TT.wallB[1], TT.wallB[2]);
+    else prism(c, b.gx + 1.05, b.gy + 1.05, 0.9, 0.9, 5 + dz, '#454d5c', '#23272f', '#343b48');
     if (lv >= 3) {
       // armor studs around the emplacement
       for (const a3 of [0.9, 2.3, 4.0, 5.4]) {
@@ -863,7 +889,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     c.moveTo(cp.x + R, cp.y - 9 - dz);
     c.lineTo(cp.x + R, cp.y - 22 - dz);
     c.stroke();
-    c.strokeStyle = lv >= 3 ? '#d8b25c' : '#4a5160';
+    c.strokeStyle = lv >= 3 ? TT.trim : '#4a5160';
     c.lineWidth = 2.6;
     c.beginPath();
     c.ellipse(cp.x, cp.y - 22 - dz, R, R * 0.555, 0, 0, 7);
@@ -916,17 +942,19 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     // the war hall rises with every level
     const H = 20 + (lv - 1) * 6;
     const RH = 20 + (lv - 1) * 3;
+    // the war hall re-themes per tier: timber → granite → gold → obsidian → marble
+    const TT = tierTheme(lv);
     bShadow(c, b, s);
     pad(c, b, s);
-    const BD = lv >= 4
-      ? prism(c, b.gx + 0.45, b.gy + 0.85, 2.1, 1.6, H, '#cfc8b6', '#8f8674', '#b0a794')
+    const BD = lv >= 3
+      ? prism(c, b.gx + 0.45, b.gy + 0.85, 2.1, 1.6, H, TT.wall[0], TT.wall[1], TT.wall[2])
       : prism(c, b.gx + 0.45, b.gy + 0.85, 2.1, 1.6, H, '#c2925a', '#7d5a30', '#a3773f');
     faceLines(c, BD.f, BD.F, BD.e, BD.E, 5, 'rgba(0,0,0,.13)', 1);
-    const BR = tierRoof(lv, ['#c8402f', '#a33325', '#f07a5a'] as const);
+    const BR = TT.roof;
     const M2 = roof(c, b.gx + 0.45, b.gy + 0.85, 2.1, 1.6, H, RH, BR[0], BR[1], BR[2], 0.2);
     if (lv >= 4) {
       // gold eaves trim
-      c.strokeStyle = '#e9b93c';
+      c.strokeStyle = TT.trim;
       c.lineWidth = 1.8;
       c.beginPath();
       c.moveTo(BD.F.x, BD.F.y);
@@ -1053,11 +1081,18 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     // tents grow OUTWARD each level (fire-facing edges stay put, seats stay clear)
     const g = Math.min(lv - 1, 4) * 0.1;
     const th2 = 9 + (lv - 1) * 2, rh2 = 13 + (lv - 1) * 3;
+    const TT = tierTheme(lv);
     const CR1 = tierRoof(lv, ['#c8402f', '#a33325', '#f07a5a'] as const);
     const CR2 = tierRoof(lv, ['#3f7fbf', '#2f6296', '#6aa4d8'] as const);
-    const T1 = prism(c, b.gx + 0.45 - g, b.gy + 2.25, 1.3 + g, 1.15 + g, th2, '#d9cdb0', '#96897b', '#b8ab90', 0, false);
+    // tent canvas darkens through the tiers alongside the tops
+    const TC: readonly [string, string, string] =
+      lv >= 9 ? ['#e6e0f2', '#a89ec8', '#cbc2e0']
+      : lv >= 7 ? ['#6a6478', '#3d3849', '#544e63']
+      : lv >= 5 ? ['#e6d6ae', '#a98e5c', '#cbb587']
+      : ['#d9cdb0', '#96897b', '#b8ab90'];
+    const T1 = prism(c, b.gx + 0.45 - g, b.gy + 2.25, 1.3 + g, 1.15 + g, th2, TC[0], TC[1], TC[2], 0, false);
     roof(c, b.gx + 0.45 - g, b.gy + 2.25, 1.3 + g, 1.15 + g, th2, rh2, CR1[0], CR1[1], CR1[2], 0.12);
-    const T2 = prism(c, b.gx + 2.3, b.gy + 0.5 - g, 1.3 + g, 1.15 + g, th2, '#d9cdb0', '#96897b', '#b8ab90', 0, false);
+    const T2 = prism(c, b.gx + 2.3, b.gy + 0.5 - g, 1.3 + g, 1.15 + g, th2, TC[0], TC[1], TC[2], 0, false);
     roof(c, b.gx + 2.3, b.gy + 0.5 - g, 1.3 + g, 1.15 + g, th2, rh2, CR2[0], CR2[1], CR2[2], 0.12);
     if (lv >= 3) {
       // pennants on both tent peaks
@@ -1069,7 +1104,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
       for (const pk of peaks) {
         const py2 = pk.y - th2 - rh2;
         woodPost(c, pk.x, py2 + 2, pk.x, py2 - 10, 2);
-        c.fillStyle = lv >= 5 ? '#e9b93c' : '#c62f2f';
+        c.fillStyle = lv >= 5 ? TT.cloth : '#c62f2f';
         c.beginPath();
         c.moveTo(pk.x, py2 - 10);
         c.lineTo(pk.x + 9, py2 - 8 + wv3);
@@ -1100,7 +1135,7 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
       const st = I(b.gx + 3.65, b.gy + 0.4);
       woodPost(c, st.x, st.y, st.x, st.y - 30, 2.6);
       const wv2 = Math.sin(t * 3.1 + (b.id || 1)) * 3;
-      c.fillStyle = lv >= 5 ? '#e9b93c' : '#c62f2f';
+      c.fillStyle = lv >= 5 ? TT.cloth : '#c62f2f';
       c.beginPath();
       c.moveTo(st.x, st.y - 30);
       c.lineTo(st.x + 13, st.y - 27 + wv2);
@@ -1188,11 +1223,16 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
   },
   hut(c, b, t) {
     const s = 2;
+    const lv = b.level;
+    const TT = tierTheme(lv);
     bShadow(c, b, s);
     pad(c, b, s);
-    const HB = prism(c, b.gx + 0.32, b.gy + 0.5, 1.2, 1.05, 13, '#c2925a', '#7d5a30', '#a3773f');
+    const HB = lv >= 3
+      ? prism(c, b.gx + 0.32, b.gy + 0.5, 1.2, 1.05, 13, TT.wall[0], TT.wall[1], TT.wall[2])
+      : prism(c, b.gx + 0.32, b.gy + 0.5, 1.2, 1.05, 13, '#c2925a', '#7d5a30', '#a3773f');
     faceLines(c, HB.f, HB.F, HB.e, HB.E, 4, 'rgba(0,0,0,.13)', 1);
-    roof(c, b.gx + 0.32, b.gy + 0.5, 1.2, 1.05, 13, 14, '#c98f3e', '#a3742f', '#e0b565', 0.16);
+    if (lv >= 3) roof(c, b.gx + 0.32, b.gy + 0.5, 1.2, 1.05, 13, 14, TT.roof[0], TT.roof[1], TT.roof[2], 0.16);
+    else roof(c, b.gx + 0.32, b.gy + 0.5, 1.2, 1.05, 13, 14, '#c98f3e', '#a3742f', '#e0b565', 0.16);
     const dm = lp(HB.f, HB.e, 0.4);
     c.fillStyle = '#3a2814';
     c.fillRect(dm.x - 4.5, dm.y - 11, 9, 11);
