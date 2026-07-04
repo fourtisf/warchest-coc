@@ -106,6 +106,37 @@ function drawGhost(c: CanvasRenderingContext2D): void {
   c.restore();
 }
 
+/**
+ * Walls are the most numerous drawable (up to 250) and never animate — bake
+ * each (level, right-link, down-link) variant once and blit it, instead of
+ * re-tracing prisms 60×/s. Baked at 2× for crisp close zoom.
+ */
+const WALL_SS = 1;
+const WALL_SPR = new Map<string, { cv: HTMLCanvasElement; ox: number; oy: number }>();
+function wallSprite(lv: number, right: boolean, down: boolean): { cv: HTMLCanvasElement; ox: number; oy: number } {
+  const k = lv + ':' + (right ? 1 : 0) + (down ? 1 : 0);
+  const hit = WALL_SPR.get(k);
+  if (hit) return hit;
+  const W = Math.ceil(TW * 1.6), H = Math.ceil(TH * 2 + 64);
+  const cv = document.createElement('canvas');
+  cv.width = W * WALL_SS;
+  cv.height = H * WALL_SS;
+  const ox = W / 2, oy = 58;
+  const g = cv.getContext('2d')!;
+  g.setTransform(WALL_SS, 0, 0, WALL_SS, ox * WALL_SS, oy * WALL_SS);
+  const list: DrawableBuilding[] = [];
+  const mk = (gx: number, gy: number): DrawableBuilding => ({ id: 1, type: 'wall', gx, gy, level: lv, hp: 1 });
+  const me = mk(0, 0);
+  list.push(me);
+  if (right) list.push(mk(1, 0));
+  if (down) list.push(mk(0, 1));
+  me._list = list;
+  ART.wall(g, me, 0);
+  const spr = { cv, ox, oy };
+  WALL_SPR.set(k, spr);
+  return spr;
+}
+
 type RenderItem =
   | { k: 'b'; o: DrawableBuilding; z: number }
   | { k: 'o'; o: (typeof G.obstacles)[number]; z: number }
@@ -153,23 +184,45 @@ export function render(): void {
   }
   // drawables
   const list: ReadonlyArray<DrawableBuilding> = inBattle && G.battle ? G.battle.sim.buildings : G.buildings;
+  // O(1) wall-neighbor lookups for the sprite path (wallAt would be O(n) each)
+  const wallSet = new Set<number>();
+  for (const b of list) if (!b.dead && b.type === 'wall') wallSet.add(b.gy * MAP + b.gx);
   const items: RenderItem[] = [];
+  // viewport culling: skip drawables whose anchor is far outside the screen
+  // (a maxed base has 300+ buildings — tracing the hidden ones is pure waste)
+  const cullHalfW = VP.W / 2 / CAM.z + TW * 2.4;
+  // vertical margin covers the tallest building (a keep tops out ~260 world px
+  // above its anchor), whether it pokes in from above OR below the screen
+  const cullHalfH = VP.H / 2 / CAM.z + 300;
+  const visible = (wx: number, wy: number): boolean => {
+    const dx = wx - CAM.x, dy = wy - CAM.y;
+    return dx > -cullHalfW && dx < cullHalfW && dy > -cullHalfH && dy < cullHalfH;
+  };
   for (const b of list) {
     if (b.dead) continue;
     // enemy traps are invisible during a raid (your own village shows them)
     if (inBattle && BUILD[b.type].cat === 'trap') continue;
     if (G.place && G.place.moving === b.id) continue;
+    const s0 = BUILD[b.type].s;
+    const pc = I(b.gx + s0 / 2, b.gy + s0 / 2);
+    if (!visible(pc.x, pc.y)) continue;
     (b as { _list?: ReadonlyArray<DrawableBuilding> })._list = list;
     items.push({ k: 'b', o: b, z: b.gx + b.gy + BUILD[b.type].s });
   }
   if (!inBattle)
     for (const ob of G.obstacles) {
       if (ob.dead) continue;
+      const pc = I(ob.gx + 0.5, ob.gy + 0.5);
+      if (!visible(pc.x, pc.y)) continue;
       items.push({ k: 'o', o: ob, z: ob.gx + ob.gy + 1 });
     }
   const units: ReadonlyArray<DrawableUnit> = inBattle && G.battle ? G.battle.sim.troops : villageUnits();
   for (const u of units) {
     if (u.dead) continue;
+    {
+      const pu = I(u.x, u.y);
+      if (!visible(pu.x, pu.y)) continue;
+    }
     let z = u.x + u.y + (TROOP[u.type as TroopType].fly ? 3 : 0);
     if (!inBattle) {
       // units idling inside a camp draw in FRONT of it, never under a tent
@@ -190,7 +243,15 @@ export function render(): void {
       const job = !inBattle ? jobOf(b.id) : undefined;
       const underConstruction = job && (b as VillageBuilding).jobKind === 'new';
       if (underConstruction) drawConstructionSite(ctx, b, s, G.t);
-      else {
+      else if (b.type === 'wall') {
+        const spr = wallSprite(
+          b.level,
+          wallSet.has(b.gy * MAP + b.gx + 1),
+          wallSet.has((b.gy + 1) * MAP + b.gx),
+        );
+        const p = I(b.gx, b.gy);
+        ctx.drawImage(spr.cv, p.x - spr.ox, p.y - spr.oy, spr.cv.width / WALL_SS, spr.cv.height / WALL_SS);
+      } else {
         ART[b.type](ctx, b, G.t);
         if (b.level >= 7 && BUILD[b.type].cat !== 'trap') prestigeFx(ctx, b, s, G.t);
       }

@@ -307,8 +307,20 @@ export function bootGame(root: HTMLElement): () => void {
     if (!document.hidden && !G.battle) void refreshMailBadge();
   }, 60_000);
 
+  // idle village halves the paint rate (30fps); any input, camera tween or
+  // battle snaps back to 60 — the sim always steps at full 60Hz regardless
+  let lastInput = performance.now();
+  const noteInput = (): void => {
+    lastInput = performance.now();
+  };
+  window.addEventListener('pointerdown', noteInput, { passive: true });
+  window.addEventListener('pointermove', noteInput, { passive: true });
+  window.addEventListener('wheel', noteInput, { passive: true });
+  window.addEventListener('keydown', noteInput, { passive: true });
+
   let raf = 0;
   let last = performance.now(), accu = 0;
+  let paintFlip = false;
   const frame = (ts: number): void => {
     const el = Math.min(0.1, (ts - last) / 1000);
     last = ts;
@@ -317,11 +329,16 @@ export function bootGame(root: HTMLElement): () => void {
       update(1 / 60);
       accu -= 1 / 60;
     }
-    try {
-      render();
-    } catch (e) {
-      // one bad frame must never kill the loop
-      console.error('render error:', e);
+    paintFlip = !paintFlip;
+    const idleVillage =
+      G.mode === 'village' && !view.CAMT && ts - lastInput > 350;
+    if (!idleVillage || paintFlip) {
+      try {
+        render();
+      } catch (e) {
+        // one bad frame must never kill the loop
+        console.error('render error:', e);
+      }
     }
     raf = requestAnimationFrame(frame);
   };

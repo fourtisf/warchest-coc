@@ -80,7 +80,17 @@ let lastPaint = '';
 function paint(html: string): void {
   if (html === lastPaint) return;
   lastPaint = html;
-  $('sheetBody').innerHTML = html;
+  const body = $('sheetBody');
+  // live countdowns repaint ~1×/s — keep the user's scroll position through
+  // the innerHTML swap (and re-pin it after images have laid out)
+  const keep = body.scrollTop;
+  body.innerHTML = html;
+  if (keep > 0) {
+    body.scrollTop = keep;
+    requestAnimationFrame(() => {
+      body.scrollTop = keep;
+    });
+  }
 }
 
 export function openSheet(kind: SheetKind, arg?: number): void {

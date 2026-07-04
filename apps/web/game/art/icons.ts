@@ -5,6 +5,7 @@ import { UNIT_ART } from './units';
 import type { DrawableBuilding, DrawableUnit } from './drawable';
 
 const ICON: Record<string, HTMLCanvasElement> = {};
+const ICON_URL: Record<string, string> = {};
 
 export function getIcon(kind: 'b' | 't', key: string): HTMLCanvasElement {
   const k = kind + ':' + key;
@@ -32,6 +33,13 @@ export function getIcon(kind: 'b' | 't', key: string): HTMLCanvasElement {
 }
 
 export function iconHTML(kind: 'b' | 't', key: string): string {
-  const c = getIcon(kind, key);
-  return `<img src="${c.toDataURL()}" style="width:100%;height:74px;object-fit:contain;border-radius:9px;background:radial-gradient(circle at 50% 30%,#27354d,#141b26)">`;
+  // PNG-encoding on every sheet repaint was measurably expensive — cache the
+  // data URL alongside the canvas (icons never change once baked)
+  const k = kind + ':' + key;
+  let url = ICON_URL[k];
+  if (!url) {
+    url = getIcon(kind, key).toDataURL();
+    ICON_URL[k] = url;
+  }
+  return `<img src="${url}" width="150" height="104" style="width:100%;height:74px;object-fit:contain;border-radius:9px;background:radial-gradient(circle at 50% 30%,#27354d,#141b26)">`;
 }

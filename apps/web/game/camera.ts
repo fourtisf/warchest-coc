@@ -31,7 +31,7 @@ export const ctx2d = (): CanvasRenderingContext2D => {
 function resize(): void {
   VP.W = window.innerWidth;
   VP.H = window.innerHeight;
-  VP.DPR = Math.min(window.devicePixelRatio || 1, 2);
+  VP.DPR = Math.min(window.devicePixelRatio || 1, 1.5); // 2.0 doubled the fill cost for little visible gain
   if (cvEl) {
     cvEl.width = VP.W * VP.DPR;
     cvEl.height = VP.H * VP.DPR;
