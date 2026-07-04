@@ -168,6 +168,15 @@ export function hydrate(payload: ServerVillage): void {
       }
     }
   }
+  // rebuild the jobs view NOW, not on the next tick — any refreshSheet that
+  // runs right after this hydrate must already see finished jobs as gone
+  // (the stale-jobOf render left a ghost "Finish now" button on info sheets)
+  G.jobs = G.buildings
+    .filter((b) => b.busy && b.busyUntil !== undefined)
+    .map((b) => {
+      const tLeft = Math.max(0, (b.busyUntil! - payload.serverNow) / 1000);
+      return { bid: b.id, tLeft, total: b.jobTotalS ?? Math.max(1, tLeft), kind: b.jobKind ?? ('new' as const) };
+    });
   G.obstacles = payload.obstacles.map((o) => ({
     id: o.id,
     kind: o.kind,

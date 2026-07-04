@@ -342,14 +342,30 @@ let finishInFlight = false;
 export function finishNow(bid: number): void {
   if (finishInFlight) return; // one tap = one request; rapid taps are ignored
   finishInFlight = true;
+  const before = G.buildings.find((x) => x.id === bid);
   void (async () => {
     try {
       if (await withVillage(api.finishNow(bid))) {
+        const b = G.buildings.find((x) => x.id === bid);
+        if (b && before) {
+          const B = BUILD[b.type];
+          toast(
+            b.level > before.level
+              ? `⚡ ${B.emoji} ${B.n} upgrade complete — Lv ${b.level}!`
+              : `⚡ ${B.emoji} ${B.n} construction complete!`,
+            'ok',
+          );
+        }
         SFX.play('done');
         renderHUD();
         refreshSheet();
         updateQuestBadge();
-      } else SFX.play('err');
+      } else {
+        SFX.play('err');
+        // server disagreed (e.g. "Nothing to finish" on a stale view) —
+        // resync fast so any ghost job/button heals itself
+        markDirty();
+      }
     } finally {
       finishInFlight = false;
     }
