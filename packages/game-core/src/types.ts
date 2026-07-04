@@ -11,8 +11,10 @@ export type BuildingType =
   | 'cannon'
   | 'arrow'
   | 'mortar'
+  | 'airdef'
   | 'wall'
   | 'barracks'
+  | 'lab'
   | 'camp'
   | 'hut'
   | 'bomb'
@@ -26,9 +28,10 @@ export type TroopType =
   | 'bruiser'
   | 'warlock'
   | 'gargoyle'
-  | 'mender';
+  | 'mender'
+  | 'dragon';
 
-export type SpellType = 'heal' | 'rage' | 'bolt';
+export type SpellType = 'heal' | 'rage' | 'bolt' | 'freeze';
 export type SpellCounts = Record<SpellType, number>;
 
 export type BuildingCategory = 'core' | 'res' | 'def' | 'army' | 'trap';
@@ -70,6 +73,8 @@ export interface BuildingDef {
   d: string;
   /** 1 = can target air units (defenses only); 0 / undefined = ground only */
   air?: 0 | 1;
+  /** true = can ONLY target air units (sky ballista) */
+  airOnly?: boolean;
 }
 
 export interface TroopDef {
@@ -157,6 +162,8 @@ export interface SimTroop {
   targetId: number | null;
   moving: boolean;
   dead?: boolean;
+  /** research power multiplier baked in at deploy (hp/dmg/heal scale) */
+  mul?: number;
   /** presentational attack-swing timer (renderer decays it) */
   swing: number;
   /** waypoints toward the target when pathing around walls */

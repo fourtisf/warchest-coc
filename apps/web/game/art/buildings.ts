@@ -1030,6 +1030,76 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     }
     lvlPips(c, b, s);
   },
+  airdef(c, b, t) {
+    const s = 3;
+    const lv = b.level;
+    const mg = Math.min(lv - 1, 6);
+    const TT = tierTheme(lv);
+    bShadow(c, b, s);
+    pad(c, b, s, 'stone');
+    const base = lv >= 3
+      ? prism(c, b.gx + 0.6 - mg * 0.04, b.gy + 0.6 - mg * 0.04, 1.8 + mg * 0.08, 1.8 + mg * 0.08, 8 + mg * 2, TT.wallB[0], TT.wallB[1], TT.wallB[2])
+      : prism(c, b.gx + 0.6, b.gy + 0.6, 1.8, 1.8, 8, '#a97a44', '#6f4a22', '#8a5c2b');
+    faceLines(c, base.f, base.F, base.e, base.E, 4, 'rgba(0,0,0,.14)', 1.1);
+    const cp = I(b.gx + 1.5, b.gy + 1.5);
+    const top = cp.y - 8 - mg * 2;
+    // swivel drum
+    c.fillStyle = '#454d5c';
+    c.beginPath();
+    c.ellipse(cp.x, top - 4, 9, 5, 0, 0, 7);
+    c.fill();
+    c.strokeStyle = '#23272f';
+    c.lineWidth = 1.4;
+    c.stroke();
+    // inclined launcher: rail, bow arms, string, loaded sky bolt
+    const sway = Math.sin(t * 0.6 + (b.id || 1)) * 0.08;
+    c.save();
+    c.translate(cp.x, top - 6);
+    c.rotate(-0.62 + sway);
+    c.fillStyle = lv >= 9 ? '#54487a' : '#5a4632';
+    c.fillRect(-6, -3, 30 + mg, 6);
+    c.strokeStyle = 'rgba(20,14,8,.7)';
+    c.lineWidth = 1.2;
+    c.strokeRect(-6, -3, 30 + mg, 6);
+    c.strokeStyle = lv >= 5 ? TT.trim : '#8a5c2b';
+    c.lineWidth = 3;
+    c.beginPath();
+    c.moveTo(16 + mg, -14);
+    c.quadraticCurveTo(26 + mg, 0, 16 + mg, 14);
+    c.stroke();
+    c.strokeStyle = '#e8e2d0';
+    c.lineWidth = 1.2;
+    c.beginPath();
+    c.moveTo(16 + mg, -14);
+    c.lineTo(2, 0);
+    c.lineTo(16 + mg, 14);
+    c.stroke();
+    c.strokeStyle = lv >= 9 ? '#cfc4ff' : '#d8b25c';
+    c.lineWidth = 2.4;
+    c.beginPath();
+    c.moveTo(2, 0);
+    c.lineTo(30 + mg, 0);
+    c.stroke();
+    c.fillStyle = lv >= 9 ? '#cfc4ff' : '#ffd24a';
+    c.beginPath();
+    c.moveTo(30 + mg, -3);
+    c.lineTo(36 + mg, 0);
+    c.lineTo(30 + mg, 3);
+    c.closePath();
+    c.fill();
+    c.restore();
+    // spare bolts racked on the platform edge
+    const rk = I(b.gx + 2.3, b.gy + 2.3);
+    for (let i = 0; i < 3; i++) {
+      c.strokeStyle = '#d8dde6';
+      c.lineWidth = 2;
+      c.beginPath();
+      c.moveTo(rk.x - 6 + i * 5, rk.y - 2);
+      c.lineTo(rk.x - 2 + i * 5, rk.y - 15);
+      c.stroke();
+    }
+    lvlPips(c, b, s);
+  },
   wall(c, b, _t) {
     const lv = b.level;
     const PALS: ReadonlyArray<readonly [string, string, string]> = [
@@ -1215,6 +1285,64 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
         roofCone(c, BD.B.x, BD.B.y, 3.2, 7, TT.cone[1], '#2b0e14');
       }
     }
+    lvlPips(c, b, s);
+  },
+  lab(c, b, t) {
+    const s = 3;
+    const lv = b.level;
+    const mg = Math.min(lv - 1, 6);
+    const TT = tierTheme(lv);
+    const H = 16 + (lv - 1) * 3;
+    bShadow(c, b, s);
+    pad(c, b, s, 'stone');
+    const BD = lv >= 3
+      ? prism(c, b.gx + 0.5, b.gy + 0.7, 2.0, 1.7, H, TT.wall[0], TT.wall[1], TT.wall[2])
+      : prism(c, b.gx + 0.5, b.gy + 0.7, 2.0, 1.7, H, '#c2925a', '#7d5a30', '#a3773f');
+    faceLines(c, BD.f, BD.F, BD.e, BD.E, 4, 'rgba(0,0,0,.13)', 1);
+    roof(c, b.gx + 0.5, b.gy + 0.7, 2.0, 1.7, H, 12 + mg, TT.roof[0], TT.roof[1], TT.roof[2], 0.18);
+    // the great alembic: glass bulb of live purple brew
+    const ap = I(b.gx + 2.3, b.gy + 2.25);
+    const bh = 10 + mg * 1.2;
+    c.fillStyle = 'rgba(210,225,245,.35)';
+    c.beginPath();
+    c.ellipse(ap.x, ap.y - bh, 8.5, 9.5, 0, 0, 7);
+    c.fill();
+    c.strokeStyle = 'rgba(235,242,255,.7)';
+    c.lineWidth = 1.4;
+    c.stroke();
+    const gl = 0.5 + Math.sin(t * 2.4 + (b.id || 1)) * 0.25;
+    c.fillStyle = 'rgba(160,90,230,' + (0.55 + gl * 0.2).toFixed(3) + ')';
+    c.beginPath();
+    c.ellipse(ap.x, ap.y - bh + 3, 6.6, 5.6, 0, 0, 7);
+    c.fill();
+    c.fillStyle = 'rgba(210,225,245,.4)';
+    c.fillRect(ap.x - 2.4, ap.y - bh - 16, 4.8, 8);
+    c.fillStyle = '#8a5c2b';
+    c.fillRect(ap.x - 3, ap.y - bh - 19, 6, 4);
+    for (let i = 0; i < 3; i++) {
+      const ph = (t * 0.8 + i * 0.33 + (b.id || 1) * 0.21) % 1;
+      c.fillStyle = 'rgba(201,166,255,' + (0.75 * (1 - ph)).toFixed(3) + ')';
+      c.beginPath();
+      c.arc(ap.x + Math.sin(ph * 7 + i) * 4, ap.y - bh - 18 - ph * 16, 1.6 + i * 0.5, 0, 7);
+      c.fill();
+    }
+    // chalked rune circle in the yard
+    const rc2 = I(b.gx + 0.85, b.gy + 2.4);
+    c.save();
+    c.strokeStyle = 'rgba(201,166,255,.5)';
+    c.lineWidth = 1.3;
+    c.setLineDash([4, 3]);
+    c.lineDashOffset = -t * 6;
+    c.beginPath();
+    c.ellipse(rc2.x, rc2.y - 2, 9, 4.2, 0, 0, 7);
+    c.stroke();
+    c.restore();
+    const dm = lp(BD.f, BD.e, 0.35);
+    c.fillStyle = '#3a2814';
+    c.fillRect(dm.x - 5, dm.y - 13, 10, 13);
+    c.strokeStyle = '#2b1d0e';
+    c.lineWidth = 1.4;
+    c.strokeRect(dm.x - 5, dm.y - 13, 10, 13);
     lvlPips(c, b, s);
   },
   camp(c, b, t) {

@@ -99,10 +99,18 @@ model Army {
   warlock   Int     @default(0)
   gargoyle  Int     @default(0)
   mender    Int     @default(0)
-  /// brewed battle spells (heal / rage / bolt)
+  dragon    Int     @default(0)
+  /// brewed battle spells (heal / rage / bolt / freeze)
   spellHeal Int     @default(0)
   spellRage Int     @default(0)
   spellBolt Int     @default(0)
+  spellFreeze Int   @default(0)
+  /// War Lab research levels per troop, e.g. {"raider":3}
+  levelsJson Json   @default("{}")
+  /// active research (one at a time, like the lab in CoC)
+  researchTroop  String?
+  researchUntil  DateTime?
+  researchTotalS Float?
 }
 
 model TrainJob {
@@ -151,6 +159,8 @@ model Battle {
 
   /// defender has used their revenge for this raid
   revenged             Boolean  @default(false)
+  /// attacker troop research levels at resolve time (replay determinism)
+  levelsJson           Json?
 
   @@index([attackerId, status])
   @@index([defenderId, resolvedAt])

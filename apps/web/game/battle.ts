@@ -80,7 +80,7 @@ export function startBattle(): void {
   closeOv('mm');
   closeSheet();
   G.sel = null;
-  const sim = new BattleSim(SCOUT.base, { ...G.army }, { ...G.spells });
+  const sim = new BattleSim(SCOUT.base, { ...G.army }, { ...G.spells }, { ...G.troopLv });
   // red no-deploy overlay, baked once over the ground canvas space
   const ground = groundOrThrow();
   const red = document.createElement('canvas');
@@ -122,9 +122,9 @@ export function startBattle(): void {
 /** The army that was actually spent, reconstructed from the recorded log. */
 function armyFromLog(log: DeployLogEntry[]): { army: ArmyCounts; spells: SpellCounts } {
   const army: ArmyCounts = {
-    raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0,
+    raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0, dragon: 0,
   };
-  const spells: SpellCounts = { heal: 0, rage: 0, bolt: 0 };
+  const spells: SpellCounts = { heal: 0, rage: 0, bolt: 0, freeze: 0 };
   for (const e of log) {
     if (e.kind === 'deploy') army[e.troop]++;
     else if (e.kind === 'spell') spells[e.spell]++;
@@ -140,7 +140,7 @@ export async function watchReplay(battleId: string): Promise<void> {
     G.sel = null;
     const base = baseFromList(r.list, r.seed, r.th, r.pool);
     const { army, spells } = armyFromLog(r.log);
-    const sim = new BattleSim(base, army, spells);
+    const sim = new BattleSim(base, army, spells, r.levels);
     // log ticks anchor wherever the attacker started acting — skip the
     // deploy-screen idle instantly (steps are no-ops until the first deploy)
     const firstTick = r.log.length ? r.log[0]!.tick : 0;

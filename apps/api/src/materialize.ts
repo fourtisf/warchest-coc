@@ -4,8 +4,8 @@
  * sequentially, and production accrues from timestamps. No server ticks.
  */
 import { prisma, type Army, type Building, type Obstacle, type QuestState, type TrainJob, type Village } from '@warchest/db';
-import { BUILD, MAP, clamp } from '@warchest/game-core';
-import { armyOf, asTroop, asType, barracksSpeed, isBusy, occGrid, prodPerSec, trainSeconds } from './rules';
+import { BUILD, MAP, TROOP_MAX_LVL, clamp } from '@warchest/game-core';
+import { armyOf, asTroop, asType, barracksSpeed, isBusy, levelsOf, occGrid, prodPerSec, trainSeconds } from './rules';
 
 export interface FullVillage extends Village {
   buildings: Building[];
@@ -117,6 +117,30 @@ export async function materializeVillage(userId: string, now = new Date()): Prom
       await db.village.update({ where: { id: v.id }, data: { lastObstAt: now } });
       v.lastObstAt = now;
     }
+  }
+
+  // 1d. finished War Lab research → the troop grows permanently stronger
+  if (
+    v.army.researchTroop &&
+    v.army.researchUntil &&
+    v.army.researchUntil.getTime() <= now.getTime()
+  ) {
+    const t = asTroop(v.army.researchTroop);
+    const levels = levelsOf(v.army);
+    levels[t] = Math.min(TROOP_MAX_LVL, (levels[t] ?? 1) + 1);
+    await db.army.update({
+      where: { villageId: v.id },
+      data: {
+        levelsJson: levels as object,
+        researchTroop: null,
+        researchUntil: null,
+        researchTotalS: null,
+      },
+    });
+    v.army.levelsJson = levels as object;
+    v.army.researchTroop = null;
+    v.army.researchUntil = null;
+    v.army.researchTotalS = null;
   }
 
   // 2. training queue (sequential; speed = non-busy barracks count)

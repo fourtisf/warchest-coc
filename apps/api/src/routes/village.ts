@@ -3,11 +3,14 @@ import type { FastifyInstance } from 'fastify';
 import { prisma } from '@warchest/db';
 import {
   BUILD,
+  LAB_REQ,
   MAX_BUILDERS,
   OBSTACLE_COST,
+  RESEARCH_COST,
   SPELL,
   SPELL_CAP,
   TROOP,
+  TROOP_MAX_LVL,
   clamp,
   finishNowCostReal,
 } from '@warchest/game-core';
@@ -31,7 +34,10 @@ import {
   housingUsed,
   isBusy,
   keepLv,
+  labLv,
+  levelsOf,
   maxBarracksLv,
+  researchSeconds,
   trainSeconds,
 } from '../rules';
 import { serializeVillage } from '../serialize';
@@ -224,6 +230,47 @@ export function villageRoutes(app: FastifyInstance): void {
     });
   });
 
+  // War Lab research: one troop at a time, gated by lab level (CoC-style)
+  act('research', z.object({ troop: z.string() }), async (v, body: { troop: string }, now) => {
+    const t = asTroop(body.troop);
+    const lab = labLv(v.buildings, now);
+    if (lab < 1) throw new RuleError('lab', 'Build a War Lab first');
+    if (v.army.researchUntil && v.army.researchUntil.getTime() > now.getTime())
+      throw new RuleError('busy', 'The lab is already researching');
+    if (maxBarracksLv(v.buildings, now) < TROOP[t].unlock)
+      throw new RuleError('unlock', `Requires Barracks Level ${TROOP[t].unlock}`);
+    const cur = levelsOf(v.army)[t] ?? 1;
+    if (cur >= TROOP_MAX_LVL) throw new RuleError('max', `${TROOP[t].n} is already max level`);
+    const target = cur + 1;
+    if (lab < LAB_REQ[target - 1]!)
+      throw new RuleError('lab', `Requires War Lab Level ${LAB_REQ[target - 1]}`);
+    await payRes(v, 'm', RESEARCH_COST[target - 1]!, 'spend', `research:${t}`);
+    const total = researchSeconds(target);
+    await prisma().army.update({
+      where: { villageId: v.id },
+      data: {
+        researchTroop: t,
+        researchUntil: new Date(now.getTime() + total * 1000),
+        researchTotalS: total,
+      },
+    });
+  });
+
+  // finish the running research instantly for $WAR (atomic, double-tap safe)
+  act('research-now', z.object({}), async (v, _body, now) => {
+    if (!v.army.researchTroop || !v.army.researchUntil || v.army.researchUntil.getTime() <= now.getTime())
+      throw new RuleError('bad', 'Nothing to finish');
+    const remaining = (v.army.researchUntil.getTime() - now.getTime()) / 1000;
+    const cost = finishNowCostReal(remaining);
+    if (v.war < cost) throw new RuleError('poor', 'Not enough $WAR');
+    const claimed = await prisma().army.updateMany({
+      where: { villageId: v.id, researchUntil: { gt: now } },
+      data: { researchUntil: now },
+    });
+    if (claimed.count === 0) return;
+    await payRes(v, 'w', cost, 'spend', `research:${v.army.researchTroop}`);
+  });
+
   act('rush-training', z.object({}), async (v, _body, now) => {
     if (!v.trainJobs.length) throw new RuleError('empty', 'Queue is empty');
     const spd = barracksSpeed(v.buildings, now);
@@ -261,7 +308,7 @@ export function villageRoutes(app: FastifyInstance): void {
     const S = SPELL[s];
     if (keepLv(v.buildings) < S.unlock)
       throw new RuleError('unlock', `Requires Keep Level ${S.unlock}`);
-    const total = v.army.spellHeal + v.army.spellRage + v.army.spellBolt;
+    const total = v.army.spellHeal + v.army.spellRage + v.army.spellBolt + v.army.spellFreeze;
     if (total >= SPELL_CAP) throw new RuleError('cap', `Spell rack is full (${SPELL_CAP} max)`);
     await payRes(v, 'm', S.cost, 'spend', `brew:${s}`);
     await prisma().army.update({

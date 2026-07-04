@@ -12,9 +12,9 @@ import {
 } from '../src';
 
 const army = (a: Partial<ArmyCounts>): ArmyCounts => ({
-  raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0, ...a,
+  raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0, dragon: 0, ...a,
 });
-const spells = (s: Partial<SpellCounts>): SpellCounts => ({ heal: 0, rage: 0, bolt: 0, ...s });
+const spells = (s: Partial<SpellCounts>): SpellCounts => ({ heal: 0, rage: 0, bolt: 0, freeze: 0, ...s });
 
 let nextId = 1;
 const mk = (type: SimBuilding['type'], gx: number, gy: number, level = 1): SimBuilding => {
@@ -208,7 +208,7 @@ describe('new troops', () => {
     const key = JSON.stringify(first);
     expect(first.started).toBe(true);
     expect(first.pct).toBeGreaterThan(0);
-    expect(first.spellsLeft).toEqual({ heal: 0, rage: 0, bolt: 0 });
+    expect(first.spellsLeft).toEqual({ heal: 0, rage: 0, bolt: 0, freeze: 0 });
     for (let i = 0; i < 199; i++) {
       expect(JSON.stringify(simulateBattle(genEnemy(4711, 3), A, log, S))).toBe(key);
     }

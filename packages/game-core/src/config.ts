@@ -153,6 +153,22 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
     ],
     d: 'Long-range splash shells. Blind up close, cannot hit flyers.', air: 0,
   },
+  airdef: {
+    n: 'Sky Ballista', s: 3, cat: 'def', res: 'g', emoji: '🎯', max: [0, 0, 0, 0, 1, 1, 2, 2, 3, 3],
+    lv: [
+      { hp: 700, c: 20000, t: 140, dmg: 60, rate: 1.9, rng: 9 },
+      { hp: 850, c: 40000, t: 210, dmg: 75, rate: 1.9, rng: 9 },
+      { hp: 1020, c: 70000, t: 300, dmg: 92, rate: 1.8, rng: 9.2 },
+      { hp: 1220, c: 110000, t: 420, dmg: 112, rate: 1.8, rng: 9.2 },
+      { hp: 1450, c: 160000, t: 560, dmg: 135, rate: 1.8, rng: 9.4 },
+      { hp: 1700, c: 230000, t: 700, dmg: 160, rate: 1.7, rng: 9.4 },
+      { hp: 1980, c: 320000, t: 860, dmg: 190, rate: 1.7, rng: 9.6 },
+      { hp: 2290, c: 430000, t: 1040, dmg: 225, rate: 1.7, rng: 9.6 },
+      { hp: 2630, c: 560000, t: 1220, dmg: 265, rate: 1.6, rng: 9.8 },
+      { hp: 3000, c: 700000, t: 1400, dmg: 310, rate: 1.6, rng: 10 },
+    ],
+    d: 'Skewers dragons and flyers from afar. Cannot hit ground troops.', air: 1, airOnly: true,
+  },
   wall: {
     n: 'Wall', s: 1, cat: 'def', res: 'g', emoji: '🧱', max: [25, 50, 75, 100, 125, 150, 175, 200, 225, 250],
     lv: [
@@ -184,6 +200,22 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
       { hp: 2180, c: 300000, t: 720 },
     ],
     d: 'Trains units. Higher levels unlock new units.',
+  },
+  lab: {
+    n: 'War Lab', s: 3, cat: 'army', res: 'm', emoji: '⚗️', max: [0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+    lv: [
+      { hp: 420, c: 2500, t: 45 },
+      { hp: 540, c: 8000, t: 90 },
+      { hp: 680, c: 20000, t: 180 },
+      { hp: 840, c: 45000, t: 260 },
+      { hp: 1020, c: 85000, t: 360 },
+      { hp: 1220, c: 140000, t: 480 },
+      { hp: 1450, c: 210000, t: 620 },
+      { hp: 1700, c: 300000, t: 800 },
+      { hp: 1980, c: 400000, t: 1000 },
+      { hp: 2300, c: 520000, t: 1200 },
+    ],
+    d: 'Researches troop power. Higher labs unlock deeper levels.',
   },
   camp: {
     n: 'Army Camp', s: 4, cat: 'army', res: 'm', emoji: '⛺', max: [1, 1, 2, 2, 3, 3, 3, 4, 4, 4],
@@ -264,15 +296,34 @@ export const TROOP: Record<TroopType, TroopDef> = {
     cost: 550, tt: 10, fly: 1, pref: 'heal', unlock: 4, heals: true,
     d: 'Flying healer. Deals no damage — keeps your army standing instead.',
   },
+  dragon: {
+    n: 'Dragon', emoji: '🐉', house: 10, hp: 1900, dmg: 55, rate: 1.1, rng: 1.6, spd: 1.7,
+    cost: 9000, tt: 30, fly: 1, pref: 'any', unlock: 5, splash: 0.9,
+    d: 'Flying terror. Splashing fire breath; only arrows and sky ballistae can answer.',
+  },
 };
 
 export const TROOP_ORDER: readonly TroopType[] = [
-  'raider', 'sniper', 'bomber', 'imp', 'bruiser', 'warlock', 'gargoyle', 'mender',
+  'raider', 'sniper', 'bomber', 'imp', 'bruiser', 'warlock', 'gargoyle', 'mender', 'dragon',
 ];
 export const SHOP_ORDER: readonly BuildingType[] = [
-  'cannon', 'arrow', 'mortar', 'wall', 'bomb', 'spring',
-  'mine', 'well', 'vault', 'tank', 'barracks', 'camp', 'hut',
+  'cannon', 'arrow', 'mortar', 'airdef', 'wall', 'bomb', 'spring',
+  'mine', 'well', 'vault', 'tank', 'barracks', 'lab', 'camp', 'hut',
 ];
+
+/* ----------------------- War Lab troop research ----------------------- */
+/** Max research level for every troop. */
+export const TROOP_MAX_LVL = 5;
+/** hp/dmg/heal multiplier per troop level (index = level-1). */
+export const TROOP_LVL_MUL = [1, 1.16, 1.34, 1.55, 1.8] as const;
+export const troopMul = (lvl: number): number =>
+  TROOP_LVL_MUL[Math.min(Math.max(lvl, 1), TROOP_MAX_LVL) - 1]!;
+/** Mana cost to research TO level index+1 (so [1] = cost of level 2). */
+export const RESEARCH_COST = [0, 25000, 90000, 250000, 600000] as const;
+/** Real research durations in seconds (same indexing as RESEARCH_COST). */
+export const REAL_RESEARCH_TIMES = [0, 6 * 3600, 24 * 3600, 48 * 3600, 96 * 3600] as const;
+/** War Lab level required to research TO level index+1. */
+export const LAB_REQ = [0, 1, 3, 5, 7] as const;
 
 /** Battle spells — brewed with Mana, cast anywhere on the battlefield. */
 export const SPELL: Record<SpellType, SpellDef> = {
@@ -288,8 +339,12 @@ export const SPELL: Record<SpellType, SpellDef> = {
     n: 'Skybolt', emoji: '⚡', cost: 500, unlock: 4, radius: 1.2, dmg: 220,
     d: 'Instant lightning strike. Melts a defense or a chunk of wall.',
   },
+  freeze: {
+    n: 'Frost Rune', emoji: '❄️', cost: 700, unlock: 6, radius: 2.6, dur: 6,
+    d: 'Defenses inside the ring stop firing for 6 seconds.',
+  },
 };
-export const SPELL_ORDER: readonly SpellType[] = ['heal', 'rage', 'bolt'];
+export const SPELL_ORDER: readonly SpellType[] = ['heal', 'rage', 'bolt', 'freeze'];
 /** Max spells carried into battle (all types combined). */
 export const SPELL_CAP = 3;
 
@@ -339,8 +394,10 @@ export const REAL_BUILD_TIMES: Record<BuildingType, readonly number[]> = {
   cannon: [10, 60, 900, 7200, 28800, 86400, 172800, 259200, 345600, 432000],
   arrow: [10, 60, 900, 7200, 28800, 86400, 172800, 259200, 345600, 432000],
   mortar: [300, 7200, 28800, 86400, 172800, 259200, 345600, 432000, 518400, 604800],
+  airdef: [900, 7200, 28800, 86400, 172800, 259200, 345600, 432000, 518400, 604800],
   wall: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   barracks: [10, 60, 900, 7200, 28800, 86400, 172800, 259200, 345600, 432000],
+  lab: [900, 7200, 28800, 86400, 172800, 259200, 345600, 432000, 518400, 604800],
   camp: [10, 60, 900, 7200, 28800, 86400, 172800, 259200, 345600, 432000],
   hut: [0],
   bomb: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -357,6 +414,7 @@ export const REAL_TRAIN_TIMES: Record<TroopType, number> = {
   warlock: 150,
   gargoyle: 180,
   mender: 240,
+  dragon: 1200,
 };
 
 /** Real obstacle-clearing times (a builder works on it), seconds. */

@@ -13,13 +13,14 @@ import {
   OBSTACLE_COST,
   canPlace as canPlaceOn,
   finishNowCostReal,
+  REAL_RESEARCH_TIMES,
   fmt,
   type BuildingType,
   type QuestView,
   type SpellType,
   type TroopType,
 } from '@warchest/game-core';
-import { api, nowMs, prodPerSec, realBuildSeconds, realTrainSeconds, withVillage } from './api';
+import { api, nowMs, prodPerSec, realBuildSeconds, realTrainSeconds, serverConfig, withVillage } from './api';
 import { $ } from './dom';
 import { FX } from './fx';
 import { SFX } from './sfx';
@@ -188,7 +189,7 @@ export function brewSpell(s: SpellType): void {
     SFX.play('err');
     return;
   }
-  if (G.spells.heal + G.spells.rage + G.spells.bolt >= SPELL_CAP) {
+  if (G.spells.heal + G.spells.rage + G.spells.bolt + G.spells.freeze >= SPELL_CAP) {
     toast(`Spell rack is full (${SPELL_CAP} max)`, 'warn');
     SFX.play('err');
     return;
@@ -417,6 +418,50 @@ export function updateQuestBadge(): void {
 
 /** Cost previews for the sheet UI (server recomputes authoritatively). */
 export const uiFinishCost = (tLeft: number): number => finishNowCostReal(tLeft);
+export const uiResearchSeconds = (target: number): number =>
+  (REAL_RESEARCH_TIMES[target - 1] ?? 0) / serverConfig.timeScale;
+
+/* ------------------------------ War Lab ------------------------------ */
+let researchInFlight = false;
+export function researchTroop(t: TroopType): void {
+  if (researchInFlight) return;
+  researchInFlight = true;
+  const target = (G.troopLv[t] ?? 1) + 1;
+  void (async () => {
+    try {
+      if (await withVillage(api.research(t))) {
+        SFX.play('build');
+        toast(`⚗️ Researching ${TROOP[t].n} → Lv ${target}…`, 'ok');
+        renderHUD();
+        refreshSheet();
+      } else SFX.play('err');
+    } finally {
+      researchInFlight = false;
+    }
+  })();
+}
+
+export function researchNow(): void {
+  if (researchInFlight) return;
+  researchInFlight = true;
+  const t = G.research?.troop;
+  void (async () => {
+    try {
+      if (await withVillage(api.researchNow())) {
+        SFX.play('done');
+        if (t) toast(`⚗️ ${TROOP[t].n} is now Lv ${G.troopLv[t] ?? 1}!`, 'ok');
+        renderHUD();
+        refreshSheet();
+        updateQuestBadge();
+      } else {
+        SFX.play('err');
+        markDirty();
+      }
+    } finally {
+      researchInFlight = false;
+    }
+  })();
+}
 export const uiTrainSeconds = realTrainSeconds;
 export const uiBuildSeconds = realBuildSeconds;
 export { jobOf };

@@ -136,7 +136,7 @@ export function render(): void {
       const p = I(sp.x, sp.y);
       const left = (sp.untilTick - G.battle.sim.tick) / TICKS_PER_SEC;
       const a = Math.min(0.5, Math.max(0.12, left / (S.dur ?? 1))) * (0.8 + Math.sin(G.t * 6) * 0.2);
-      const col = sp.spell === 'rage' ? '255,110,70' : '80,230,160';
+      const col = sp.spell === 'rage' ? '255,110,70' : sp.spell === 'freeze' ? '143,208,255' : '80,230,160';
       ctx.fillStyle = `rgba(${col},${a * 0.25})`;
       ctx.strokeStyle = `rgba(${col},${a})`;
       ctx.lineWidth = 2;

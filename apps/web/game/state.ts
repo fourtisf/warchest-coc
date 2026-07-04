@@ -139,6 +139,10 @@ export interface GState {
   jobs: BuildJob[];
   army: ArmyCounts;
   spells: SpellCounts;
+  /** War Lab research levels per troop (absent = level 1) */
+  troopLv: Partial<Record<TroopType, number>>;
+  /** active research, if any */
+  research: { troop: TroopType; finishesAt: number; total: number } | null;
   trainQ: TrainJob[];
   stat: GameStat;
   questDone: Record<string, boolean>;
@@ -165,9 +169,11 @@ export function freshState(): GState {
     obstacles: [],
     jobs: [],
     army: {
-      raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0,
+      raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0, dragon: 0,
     },
-    spells: { heal: 0, rage: 0, bolt: 0 },
+    spells: { heal: 0, rage: 0, bolt: 0, freeze: 0 },
+    troopLv: {},
+    research: null,
     trainQ: [],
     stat: {
       trained: 0, wins: 0, raids: 0, warClaimed: 0, gCollected: 0, mCollected: 0,

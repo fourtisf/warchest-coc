@@ -2,7 +2,7 @@
 import type { User } from '@warchest/db';
 import { ENV } from './env';
 import { statOf, storedNow, type FullVillage } from './materialize';
-import { armyOf, spellsOf } from './rules';
+import { armyOf, levelsOf, spellsOf } from './rules';
 
 export function serializeVillage(v: FullVillage, user: User, now = new Date()): object {
   return {
@@ -43,6 +43,15 @@ export function serializeVillage(v: FullVillage, user: User, now = new Date()): 
       })),
     army: armyOf(v.army),
     spells: spellsOf(v.army),
+    troopLv: levelsOf(v.army),
+    research:
+      v.army.researchTroop && v.army.researchUntil
+        ? {
+            troop: v.army.researchTroop,
+            finishesAt: v.army.researchUntil.getTime(),
+            totalS: v.army.researchTotalS,
+          }
+        : null,
     trainQ: v.trainJobs.map((j) => ({
       id: j.id,
       type: j.troopType,

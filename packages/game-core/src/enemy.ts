@@ -45,6 +45,10 @@ export function genEnemy(seed: number, keepLevel: number): EnemyBase {
     const s = take();
     put('arrow', s[0], s[1], th);
   }
+  for (let i = 0; i < BUILD.airdef.max[th - 1]!; i++) {
+    const s = take();
+    put('airdef', s[0], s[1], Math.max(1, th - 4));
+  }
   const stoSlots: ReadonlyArray<readonly [number, number]> = [
     [15, 16], [22, 16], [15, 21], [22, 21],
   ];

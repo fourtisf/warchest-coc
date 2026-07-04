@@ -1,12 +1,15 @@
 /** Bottom sheet (shop / army / info / obstacle / builders) — ported verbatim. */
 import {
   BUILD,
+  LAB_REQ,
   OBSTACLE_COST,
+  RESEARCH_COST,
   SHOP_ORDER,
   SPELL,
   SPELL_CAP,
   SPELL_ORDER,
   TROOP,
+  TROOP_MAX_LVL,
   TROOP_ORDER,
   fmt,
   tstr,
@@ -36,7 +39,10 @@ import {
   canUpgrade,
   clearObstacle,
   finishNow,
+  researchNow,
+  researchTroop,
   rushTraining,
+  uiResearchSeconds,
   startMove,
   startPlace,
   startUpgrade,
@@ -159,25 +165,53 @@ export function renderSheet(): void {
     const used = housingUsed(), cap = armyCap();
     $('sheetSub').textContent = '';
     let h = `<div class="row" style="margin:2px 0 12px"><b style="font-size:13px">🗡️ ${used}/${cap}</b><div class="capBar"><i style="width:${pct(cap ? (used / cap) * 100 : 0)}%"></i></div></div><div class="grid">`;
+    const labNow = G.buildings.reduce((m, b) => (b.type === 'lab' && !b.busy ? Math.max(m, b.level) : m), 0);
     for (const t of TROOP_ORDER) {
       const T = TROOP[t];
       const locked = maxBarracksLv() < T.unlock;
+      const lvT = G.troopLv[t] ?? 1;
+      const mul = 1 + [0, 0.16, 0.34, 0.55, 0.8][lvT - 1]!;
+      let rsch = '';
+      if (!locked && labNow >= 1) {
+        if (lvT >= TROOP_MAX_LVL)
+          rsch = `<div class="meta" style="color:var(--war)">★ Max power</div>`;
+        else if (!G.research && labNow >= LAB_REQ[lvT]!)
+          rsch = `<button class="btn ghost" data-act="rsch" data-arg="${t}" style="margin-top:6px;font-size:11px">⚗️ Lv ${lvT + 1} · ${costHTML('m', RESEARCH_COST[lvT]!)} · ${tstr(uiResearchSeconds(lvT + 1))}</button>`;
+        else if (!G.research)
+          rsch = `<div class="meta" style="color:var(--dim)">⚗️ Lab L${LAB_REQ[lvT]} for Lv ${lvT + 1}</div>`;
+      }
       h += `<div class="card ${locked ? 'locked' : ''} ${SHEET_HL === t ? 'hl' : ''}">
         <span class="cnt" style="position:absolute;top:6px;right:6px;background:var(--gold);color:#1d1503;font-weight:900;font-size:11px;padding:2px 8px;border-radius:9px">×${G.army[t]}</span>
+        ${lvT > 1 ? `<span style="position:absolute;top:6px;left:6px;background:#7a3bd8;color:#efe4ff;font-weight:900;font-size:10.5px;padding:2px 7px;border-radius:9px">Lv ${lvT}</span>` : ''}
         ${iconHTML('t', t)}
         <div class="nm">${T.emoji} ${T.n}</div>
         <div class="meta">${T.d}</div>
-        <div class="meta">❤️${T.hp} · ⚔️${Math.round(T.dmg / T.rate)}/s · 🏠${T.house}</div>
+        <div class="meta">❤️${Math.round(T.hp * mul)} · ⚔️${Math.round((T.dmg * mul) / T.rate)}/s · 🏠${T.house}</div>
         ${
           locked
             ? `<div class="meta" style="color:var(--bad)">Barracks L${T.unlock} required</div>`
             : `<button class="btn mana" data-act="train" data-arg="${t}">${costHTML('m', T.cost)} · ${tstr(uiTrainSeconds(t))}</button>`
         }
+        ${rsch}
       </div>`;
     }
     h += '</div>';
+    // War Lab status strip
+    if (labNow >= 1) {
+      if (G.research) {
+        const R = TROOP[G.research.troop as keyof typeof TROOP];
+        const tLeft = Math.max(0, (G.research.finishesAt - nowMs()) / 1000);
+        const fin = uiFinishCost(tLeft);
+        h += `<div class="row" style="margin:14px 0 6px"><b style="font-size:13px">⚗️ War Lab: ${R.emoji} ${R.n} → Lv ${(G.troopLv[G.research.troop] ?? 1) + 1}</b><span class="spacer"></span>
+          <button class="btn war" data-act="rschNow">⚡ ◆${fin}</button></div>
+          <div class="row"><div class="capBar"><i style="width:${pct((1 - tLeft / G.research.total) * 100)}%;background:linear-gradient(90deg,#7a3bd8,#c9a6ff)"></i></div>
+          <b style="font-size:12px;min-width:44px;text-align:right">${tstr(tLeft)}</b></div>`;
+      } else {
+        h += `<div class="meta" style="margin:14px 0 2px;color:var(--dim)">⚗️ War Lab L${labNow} idle — research a troop above to raise its power.</div>`;
+      }
+    }
     {
-      const brewed = G.spells.heal + G.spells.rage + G.spells.bolt;
+      const brewed = G.spells.heal + G.spells.rage + G.spells.bolt + G.spells.freeze;
       h += `<div class="row" style="margin:16px 0 10px"><b style="font-size:13px">🧪 Spells · ${brewed}/${SPELL_CAP}</b><div class="capBar"><i style="width:${pct((brewed / SPELL_CAP) * 100)}%;background:linear-gradient(90deg,#7a3bd8,#c9a6ff)"></i></div></div><div class="grid">`;
       for (const s of SPELL_ORDER) {
         const S = SPELL[s];
@@ -341,6 +375,10 @@ export function initSheet(): void {
     else if (act === 'clear') {
       const ob = G.obstacles.find((o) => o.id === Number(arg));
       if (ob) clearObstacle(ob);
+    } else if (act === 'rsch') {
+      researchTroop(arg as TroopType);
+    } else if (act === 'rschNow') {
+      researchNow();
     } else if (act === 'rushq') {
       rushTraining();
     } else if (act === 'goKeep') {

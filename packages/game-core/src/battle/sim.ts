@@ -13,7 +13,7 @@
  *    the log replays bit-identically
  *  - pathfinding is plain BFS with a fixed neighbor order — no randomness
  */
-import { BATTLE_TIME, BUILD, MAP, SPELL, TICK, TROOP } from '../config';
+import { BATTLE_TIME, BUILD, MAP, SPELL, TICK, TROOP, troopMul } from '../config';
 import { mulberry32 } from '../rng';
 import { clamp, dist, lerp } from '../util';
 import type {
@@ -32,12 +32,12 @@ import type {
   TroopType,
 } from '../types';
 
-const DEFENSE_TYPES = ['cannon', 'arrow', 'mortar'] as const;
+const DEFENSE_TYPES = ['cannon', 'arrow', 'mortar', 'airdef'] as const;
 const isDefense = (t: string): t is (typeof DEFENSE_TYPES)[number] =>
   (DEFENSE_TYPES as readonly string[]).includes(t);
 const isTrap = (t: BuildingType): boolean => BUILD[t].cat === 'trap';
 
-export const zeroSpells = (): SpellCounts => ({ heal: 0, rage: 0, bolt: 0 });
+export const zeroSpells = (): SpellCounts => ({ heal: 0, rage: 0, bolt: 0, freeze: 0 });
 
 /** Closest point on a building's footprint rect to (px,py), plus its distance. */
 export function nearRect(
@@ -69,6 +69,8 @@ export class BattleSim {
   projs: Projectile[] = [];
   army: ArmyCounts;
   spells: SpellCounts;
+  /** War Lab research levels of the attacking army (1 = unresearched). */
+  levels: Partial<Record<TroopType, number>>;
   /** Rage/heal rings currently on the field (renderer draws these). */
   activeSpells: ActiveSpell[] = [];
 
@@ -93,10 +95,16 @@ export class BattleSim {
   private endIn: number | null = null;
   private endedEarly = false;
 
-  constructor(base: EnemyBase, army: ArmyCounts, spells?: SpellCounts) {
+  constructor(
+    base: EnemyBase,
+    army: ArmyCounts,
+    spells?: SpellCounts,
+    levels?: Partial<Record<TroopType, number>>,
+  ) {
     this.buildings = base.list.map((b) => ({ ...b }));
     this.occ = base.occ.slice();
     this.army = { ...army };
+    this.levels = { ...(levels ?? {}) };
     this.spells = { ...zeroSpells(), ...(spells ?? {}) };
     this.nonWall = this.buildings.filter((b) => b.type !== 'wall' && !isTrap(b.type)).length;
     this.rng = mulberry32(base.seed);
@@ -148,8 +156,9 @@ export class BattleSim {
     if ((this.army[type] ?? 0) <= 0) return false;
     this.army[type]--;
     const T = TROOP[type];
+    const mul = troopMul(this.levels[type] ?? 1);
     this.troops.push({
-      id: this.uid++, type, x, y, hp: T.hp, maxhp: T.hp,
+      id: this.uid++, type, x, y, hp: T.hp * mul, maxhp: T.hp * mul, mul,
       cd: 0.3 + this.rng() * 0.3, targetId: null, moving: true, swing: 0,
     });
     this.started = true;
@@ -400,7 +409,7 @@ export class BattleSim {
         for (const t of this.troops) {
           if (t.dead || TROOP[t.type].heals || t.hp >= t.maxhp) continue;
           if (dist(tgt.x, tgt.y, t.x, t.y) <= 1.2) {
-            t.hp = Math.min(t.maxhp, t.hp + T.dmg);
+            t.hp = Math.min(t.maxhp, t.hp + T.dmg * (u.mul ?? 1));
             healed = true;
           }
         }
@@ -456,7 +465,7 @@ export class BattleSim {
         if (u.cd <= 0) {
           u.cd = T.rate;
           u.swing = 0.55;
-          const dmgMul = this.raged(u) ? SPELL.rage.dmgMul! : 1;
+          const dmgMul = (this.raged(u) ? SPELL.rage.dmgMul! : 1) * (u.mul ?? 1);
           if (T.suicide) {
             // bomber: one big bang — walls take wallMul, neighbors splash
             this.events.push({ k: 'boom', x: np.x, y: np.y, big: 1.2 });
@@ -474,6 +483,13 @@ export class BattleSim {
               ...(T.splash ? { spl: T.splash } : {}),
             });
             this.events.push({ k: 'proj', kind: 'arrow', from: 'troop' });
+          } else if (T.splash) {
+            // splashing breath (dragon): everything near the impact point burns
+            this.events.push({ k: 'melee-hit', x: np.x, y: np.y });
+            for (const b2 of this.buildings) {
+              if (b2.dead || isTrap(b2.type)) continue;
+              if (nearRect(np.x, np.y, b2).d <= T.splash) this.dmgBuilding(b2, T.dmg * dmgMul);
+            }
           } else {
             this.dmgBuilding(target, T.dmg * dmgMul);
             this.events.push({ k: 'melee-hit', x: np.x, y: np.y });
@@ -552,12 +568,21 @@ export class BattleSim {
       const D = BUILD[b.type];
       const L = D.lv[b.level - 1]!;
       const cx = b.gx + D.s / 2, cy = b.gy + D.s / 2;
+      // frost rune: defenses inside the ring are fully stopped (cd frozen too)
+      let frozen = false;
+      for (const sp of this.activeSpells)
+        if (sp.spell === 'freeze' && dist(sp.x, sp.y, cx, cy) <= SPELL.freeze.radius) {
+          frozen = true;
+          break;
+        }
+      if (frozen) continue;
       b.cd = (b.cd ?? 0) - dt;
       let best: SimTroop | null = null, bd = 1e9;
       for (const u of this.troops) {
         if (u.dead) continue;
         const T = TROOP[u.type];
         if (T.fly && !D.air) continue;
+        if (!T.fly && D.airOnly) continue;
         const d = dist(cx, cy, u.x, u.y);
         if (d > L.rng! || (L.min && d < L.min)) continue;
         if (d < bd) {
@@ -701,8 +726,9 @@ export function simulateBattle(
   army: ArmyCounts,
   log: readonly DeployLogEntry[],
   spells?: SpellCounts,
+  levels?: Partial<Record<TroopType, number>>,
 ): BattleOutcome {
-  const sim = new BattleSim(base, army, spells);
+  const sim = new BattleSim(base, army, spells, levels);
   const capTick = (log.length ? log[0]!.tick : 0) + MAX_TICKS;
   let li = 0;
   while (!sim.over && sim.tick <= capTick) {

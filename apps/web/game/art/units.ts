@@ -156,6 +156,58 @@ export const UNIT_ART: Record<TroopType, UnitArtFn> = {
     c.beginPath(); c.moveTo(6.5, -11 + bob); c.lineTo(6.5, -7 + bob);
     c.moveTo(4.5, -9 + bob); c.lineTo(8.5, -9 + bob); c.stroke();
   },
+  dragon(c, u, t, bob) {
+    // crimson wyrm — broad webbed wings, gold belly, ember breath
+    const fl = Math.sin(t * 8 + u.id) * 7;
+    for (const sgn of [-1, 1] as const) {
+      c.fillStyle = 'rgba(178,52,36,.95)';
+      c.beginPath();
+      c.moveTo(sgn * 3, -12 + bob);
+      c.quadraticCurveTo(sgn * 20, -22 + bob - fl, sgn * 24, -8 + bob - fl);
+      c.quadraticCurveTo(sgn * 14, -9 + bob, sgn * 8, -6 + bob);
+      c.quadraticCurveTo(sgn * 5, -7 + bob, sgn * 3, -7 + bob);
+      c.closePath();
+      c.fill();
+      c.strokeStyle = 'rgba(90,16,10,.7)';
+      c.lineWidth = 1.2;
+      c.stroke();
+      c.beginPath();
+      c.moveTo(sgn * 4, -10 + bob);
+      c.lineTo(sgn * 18, -15 + bob - fl * 0.8);
+      c.stroke();
+    }
+    c.strokeStyle = '#a83324';
+    c.lineWidth = 3.4;
+    c.lineCap = 'round';
+    c.beginPath();
+    c.moveTo(-2, -4 + bob);
+    c.quadraticCurveTo(-10, 1 + bob, -15, -3 + bob + Math.sin(t * 5 + u.id) * 2);
+    c.stroke();
+    c.lineCap = 'butt';
+    c.fillStyle = '#e0632f';
+    c.beginPath();
+    c.moveTo(-15, -6 + bob);
+    c.lineTo(-19, -3 + bob);
+    c.lineTo(-14, 0 + bob);
+    c.closePath();
+    c.fill();
+    c.fillStyle = '#c8402f';
+    c.beginPath(); c.ellipse(0, -9 + bob, 7.2, 9.2, 0, 0, 7); c.fill();
+    c.strokeStyle = 'rgba(90,16,10,.65)'; c.lineWidth = 1.2; c.stroke();
+    c.fillStyle = '#ffcf7a';
+    c.beginPath(); c.ellipse(1.5, -6.5 + bob, 3.4, 5.2, 0, 0, 7); c.fill();
+    c.fillStyle = '#c8402f';
+    c.beginPath(); c.ellipse(5.5, -16 + bob, 4.6, 3.8, 0.3, 0, 7); c.fill();
+    c.strokeStyle = 'rgba(90,16,10,.65)'; c.stroke();
+    c.fillStyle = '#ffe9c9';
+    c.beginPath(); c.moveTo(3, -19 + bob); c.lineTo(1.5, -23.5 + bob); c.lineTo(4.8, -20.5 + bob); c.closePath(); c.fill();
+    c.beginPath(); c.moveTo(6, -19.5 + bob); c.lineTo(5.8, -24.5 + bob); c.lineTo(8.4, -20.5 + bob); c.closePath(); c.fill();
+    c.fillStyle = '#ffd24a';
+    c.beginPath(); c.arc(7.4, -16.5 + bob, 1.2, 0, 7); c.fill();
+    const ph = (t * 3 + u.id) % 1;
+    c.fillStyle = 'rgba(255,' + String(150 + ((80 * (1 - ph)) | 0)) + ',40,' + (0.7 * (1 - ph)).toFixed(3) + ')';
+    c.beginPath(); c.arc(10.5 + ph * 9, -15 + bob + ph * 2.5, 1.6 + ph * 2.4, 0, 7); c.fill();
+  },
 };
 
 export function drawUnit(c: CanvasRenderingContext2D, u: DrawableUnit, t: number): void {

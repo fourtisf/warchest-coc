@@ -8,7 +8,7 @@ import {
 } from '../src';
 
 const army = (a: Partial<ArmyCounts>): ArmyCounts => ({
-  raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0, ...a,
+  raider: 0, sniper: 0, bomber: 0, imp: 0, bruiser: 0, warlock: 0, gargoyle: 0, mender: 0, dragon: 0, ...a,
 });
 
 const ARMY: ArmyCounts = army({ raider: 8, sniper: 4, bruiser: 1, gargoyle: 2 });

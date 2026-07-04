@@ -51,6 +51,8 @@ export interface ServerVillage {
   }>;
   army: ArmyCounts;
   spells: SpellCounts;
+  troopLv: Partial<Record<TroopType, number>>;
+  research: { troop: TroopType; finishesAt: number; totalS: number | null } | null;
   trainQ: Array<{ id: number; type: TroopType; finishesAt: number | null; totalS: number }>;
   questDone: Record<string, boolean>;
   stat: typeof G.stat;
@@ -187,6 +189,14 @@ export function hydrate(payload: ServerVillage): void {
   }));
   G.army = { ...payload.army };
   G.spells = { ...payload.spells };
+  G.troopLv = { ...payload.troopLv };
+  G.research = payload.research
+    ? {
+        troop: payload.research.troop,
+        finishesAt: payload.research.finishesAt,
+        total: payload.research.totalS ?? Math.max(1, (payload.research.finishesAt - payload.serverNow) / 1000),
+      }
+    : null;
   G.trainQ = payload.trainQ.map((j) => ({
     sid: j.id,
     type: j.type,
@@ -228,6 +238,8 @@ export const api = {
   finishNow: (buildingId: number) =>
     call<ServerVillage>('POST', '/village/finish-now', { buildingId }),
   train: (troop: TroopType) => call<ServerVillage>('POST', '/village/train', { troop }),
+  research: (troop: TroopType) => call<ServerVillage>('POST', '/village/research', { troop }),
+  researchNow: () => call<ServerVillage>('POST', '/village/research-now', {}),
   brew: (spell: SpellType) => call<ServerVillage>('POST', '/village/brew', { spell }),
   rushTraining: () => call<ServerVillage>('POST', '/village/rush-training', {}),
   clearObstacle: (obstacleId: number) =>
@@ -292,6 +304,7 @@ export interface ReplayDto {
   list: SimBuilding[];
   pool: number;
   log: DeployLogEntry[];
+  levels: Partial<Record<TroopType, number>>;
   stars: number;
   pct: number;
   attacker: string;

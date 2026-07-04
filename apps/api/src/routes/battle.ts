@@ -18,7 +18,7 @@ import { z } from 'zod';
 import { ENV } from '../env';
 import { materializeVillage, statOf } from '../materialize';
 import { checkQuests } from '../quests';
-import { SPELL_COLUMN, armyOf, asType, capOf, keepLv, spellsOf } from '../rules';
+import { SPELL_COLUMN, armyOf, asType, capOf, keepLv, levelsOf, spellsOf } from '../rules';
 import { serializeVillage } from '../serialize';
 import { bumpDaily, getDaily } from '../store';
 import { requireUser } from './auth';
@@ -212,9 +212,10 @@ export function battleRoutes(app: FastifyInstance): void {
     const v = await materializeVillage(user.id, now);
     const army = armyOf(v.army);
     const spells = spellsOf(v.army);
+    const levels = levelsOf(v.army);
     const snap = battle.defenderSnapshotJson as unknown as Snapshot;
     const base = baseFromList(snap.list, battle.seed, snap.th, snap.pool);
-    const outcome = simulateBattle(base, army, log, spells);
+    const outcome = simulateBattle(base, army, log, spells, levels);
 
     // consume troops, credit loot (clamped to caps), $WAR with daily soft cap, trophies
     const capG = capOf(v.buildings, 'g', now), capM = capOf(v.buildings, 'm', now);
@@ -291,6 +292,7 @@ export function battleRoutes(app: FastifyInstance): void {
         status: outcome.started ? 'resolved' : 'aborted',
         validated: true,
         deployLogJson: log as unknown as object,
+        levelsJson: levels as object,
         stars: outcome.stars,
         pct: outcome.pct,
         lootG: outcome.lootG,
@@ -336,6 +338,7 @@ export function battleRoutes(app: FastifyInstance): void {
       list: snap.list,
       pool: snap.pool,
       log: b.deployLogJson,
+      levels: b.levelsJson ?? {},
       stars: b.stars,
       pct: b.pct,
       attacker:

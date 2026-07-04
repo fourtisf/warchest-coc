@@ -6,6 +6,7 @@ import {
   MAP,
   REAL_BUILD_TIMES,
   REAL_CLEAR_TIMES,
+  REAL_RESEARCH_TIMES,
   REAL_TRAIN_TIMES,
   SPELL,
   TROOP,
@@ -37,13 +38,24 @@ export const asSpell = (s: string): SpellType => {
 export const armyOf = (a: Army): ArmyCounts => ({
   raider: a.raider, sniper: a.sniper, bomber: a.bomber, imp: a.imp,
   bruiser: a.bruiser, warlock: a.warlock, gargoyle: a.gargoyle, mender: a.mender,
+  dragon: a.dragon,
 });
 export const spellsOf = (a: Army): SpellCounts => ({
-  heal: a.spellHeal, rage: a.spellRage, bolt: a.spellBolt,
+  heal: a.spellHeal, rage: a.spellRage, bolt: a.spellBolt, freeze: a.spellFreeze,
 });
-export const SPELL_COLUMN: Record<SpellType, 'spellHeal' | 'spellRage' | 'spellBolt'> = {
-  heal: 'spellHeal', rage: 'spellRage', bolt: 'spellBolt',
+export const SPELL_COLUMN: Record<SpellType, 'spellHeal' | 'spellRage' | 'spellBolt' | 'spellFreeze'> = {
+  heal: 'spellHeal', rage: 'spellRage', bolt: 'spellBolt', freeze: 'spellFreeze',
 };
+/** War Lab research levels stored on the Army row ({} = everything level 1). */
+export const levelsOf = (a: Army): Partial<Record<TroopType, number>> =>
+  (a.levelsJson ?? {}) as Partial<Record<TroopType, number>>;
+/** Highest finished (non-busy) War Lab level; 0 = no lab. */
+export function labLv(buildings: readonly Building[], now: Date): number {
+  let m = 0;
+  for (const b of buildings)
+    if (b.type === 'lab' && !isBusy(b, now)) m = Math.max(m, b.level);
+  return m;
+}
 
 /** Real seconds for building/upgrading to `level`, honoring TIME_SCALE. */
 export function buildSeconds(type: BuildingType, level: number): number {
@@ -54,6 +66,11 @@ export function buildSeconds(type: BuildingType, level: number): number {
 
 export function trainSeconds(t: TroopType): number {
   return REAL_TRAIN_TIMES[t] / ENV.TIME_SCALE;
+}
+
+/** Real seconds to research a troop TO `target` level, honoring TIME_SCALE. */
+export function researchSeconds(target: number): number {
+  return (REAL_RESEARCH_TIMES[target - 1] ?? 0) / ENV.TIME_SCALE;
 }
 
 export function clearSeconds(kind: 'tree' | 'rock'): number {
