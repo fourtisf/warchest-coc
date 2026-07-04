@@ -4,7 +4,7 @@
  * loop. The server is authoritative — a light poller keeps local state fresh.
  */
 import { lerp } from '@warchest/game-core';
-import { api, hydrate, serverConfig } from './api';
+import { api, hydrate, hydrateSeq, serverConfig } from './api';
 import {
   cycleReplaySpeed,
   disposeBattle,
@@ -285,9 +285,12 @@ export function bootGame(root: HTMLElement): () => void {
     sync.dirty = false;
     lastFull = Date.now();
     sync.inflight = true;
+    const seqAtStart = hydrateSeq;
     api
       .me()
       .then((p) => {
+        // an action hydrated fresher state while this GET was in flight
+        if (hydrateSeq !== seqAtStart) return;
         hydrate(p);
         renderHUD();
         updateQuestBadge();

@@ -110,8 +110,17 @@ export const prodPerSec = (type: BuildingType, level: number): number =>
 
 let lastQuestDone: Record<string, boolean> = {};
 
+/**
+ * Bumped on every hydrate. Slow readers (the /me poller) capture it before
+ * their request and drop the response if it changed — otherwise a GET that
+ * started before a POST (e.g. finish-now) lands after it and reverts the UI
+ * to the pre-action state ("the timer came back").
+ */
+export let hydrateSeq = 0;
+
 /** Map a server village payload onto the local G render state. */
 export function hydrate(payload: ServerVillage): void {
+  hydrateSeq++;
   serverOffset = payload.serverNow - Date.now();
   clock.offset = serverOffset;
   serverConfig = payload.config;
