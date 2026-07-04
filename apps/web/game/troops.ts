@@ -76,7 +76,14 @@ function barracksDoor(): { x: number; y: number } {
 }
 
 function spawn(type: TroopType, fromBarracks: boolean): void {
-  const campIx = (uid + vunits.length) % Math.max(1, camps().length);
+  // seat the recruit at the least-crowded camp so EVERY camp looks alive
+  // (the old uid+length modulo stepped by 2 per spawn — with an even camp
+  // count, half the camps never received a single unit)
+  const n = Math.max(1, camps().length);
+  const counts = new Array<number>(n).fill(0);
+  for (const u of vunits) counts[u.campIx % n]!++;
+  let campIx = 0;
+  for (let i = 1; i < n; i++) if (counts[i]! < counts[campIx]!) campIx = i;
   const slot = nextSlot(campIx);
   const target = slotPos(campIx, slot);
   const at = fromBarracks ? barracksDoor() : target;
