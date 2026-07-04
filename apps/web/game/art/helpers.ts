@@ -292,6 +292,87 @@ export function tierTheme(lv: number): TierTheme {
   };
 }
 
+/** Onion dome with a finial — the royal-tier tower top. */
+export function onionDome(
+  c: CanvasRenderingContext2D,
+  x: number, y: number, r: number,
+  cA = '#e0b23a', cB = '#a8781a', finial = '#ffd24a',
+): void {
+  const outer = (): void => {
+    c.beginPath();
+    c.moveTo(x - r, y);
+    c.quadraticCurveTo(x - r * 1.05, y - r * 1.02, x - r * 0.32, y - r * 1.26);
+    c.quadraticCurveTo(x, y - r * 1.4, x, y - r * 1.82);
+    c.quadraticCurveTo(x, y - r * 1.4, x + r * 0.32, y - r * 1.26);
+    c.quadraticCurveTo(x + r * 1.05, y - r * 1.02, x + r, y);
+    c.closePath();
+  };
+  outer();
+  c.fillStyle = cA;
+  c.fill();
+  c.beginPath();
+  c.moveTo(x, y - r * 1.82);
+  c.quadraticCurveTo(x, y - r * 1.4, x + r * 0.32, y - r * 1.26);
+  c.quadraticCurveTo(x + r * 1.05, y - r * 1.02, x + r, y);
+  c.lineTo(x, y);
+  c.closePath();
+  c.fillStyle = cB;
+  c.fill();
+  outer();
+  c.strokeStyle = 'rgba(52,38,24,.55)';
+  c.lineWidth = 1.4;
+  c.stroke();
+  c.fillStyle = finial;
+  c.beginPath();
+  c.arc(x, y - r * 1.82 - 2.4, 2.4, 0, 7);
+  c.fill();
+  c.strokeStyle = '#8a5c00';
+  c.lineWidth = 1;
+  c.stroke();
+}
+
+/** Floating crystal shard with a soft glow — the mythic-tier crest. */
+export function shard(
+  c: CanvasRenderingContext2D,
+  x: number, y: number, r: number,
+  fill = '#cfc4ff', edgeC = '#5a3f9a',
+): void {
+  c.fillStyle = 'rgba(190,160,255,.22)';
+  c.beginPath();
+  c.arc(x, y, r * 2.3, 0, 7);
+  c.fill();
+  poly(c, [
+    { x, y: y - r * 1.6 }, { x: x + r, y }, { x, y: y + r * 1.6 }, { x: x - r, y },
+  ], fill);
+  c.strokeStyle = edgeC;
+  c.lineWidth = 1.2;
+  c.beginPath();
+  c.moveTo(x, y - r * 1.6);
+  c.lineTo(x + r, y);
+  c.lineTo(x, y + r * 1.6);
+  c.lineTo(x - r, y);
+  c.closePath();
+  c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,.75)';
+  c.lineWidth = 1;
+  c.beginPath();
+  c.moveTo(x - r * 0.3, y - r * 0.75);
+  c.lineTo(x - r * 0.3, y + r * 0.6);
+  c.stroke();
+}
+
+/** Crenellated flat cap for towers — the granite-tier top (no cone). */
+export function crenelTop(
+  c: CanvasRenderingContext2D,
+  gx: number, gy: number, w: number, d: number, lift: number,
+  wallB: readonly [string, string, string],
+  wall: readonly [string, string, string],
+): void {
+  prism(c, gx - 0.06, gy - 0.06, w + 0.12, d + 0.12, 4.5, wallB[0], wallB[1], wallB[2], lift);
+  for (const m of [[0, 0], [w - 0.22, 0], [0, d - 0.22], [w - 0.22, d - 0.22]] as const)
+    prism(c, gx + m[0] - 0.05, gy + m[1] - 0.05, 0.3, 0.3, 5, wall[0], wall[1], wall[2], lift + 4.5, false);
+}
+
 /** Prestige aura for high-tier buildings: embers from L7, arcane runes from L9. */
 export function prestigeFx(
   c: CanvasRenderingContext2D,

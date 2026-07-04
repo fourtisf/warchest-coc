@@ -9,6 +9,7 @@ import { wallAt, type BuildingArtFn } from './drawable';
 import {
   I, lp, poly, edge, prism, faceLines, roof, roofCone,
   bShadow, pad, lvlPips, flame, woodPost, coin, tierTheme,
+  onionDome, shard, crenelTop,
 } from './helpers';
 
 /** Roof/canvas colors by prestige tier: base → gold (5-6) → crimson obsidian (7-8) → mythic (9-10). */
@@ -50,24 +51,69 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     c.lineTo(t2.x, t2.y - 10 - W);
     c.lineTo(t3.x, t3.y - 10 - W);
     c.stroke();
+    // corner turret TOPS change shape per tier, not just color:
+    // cones → crenellated battlements → onion domes → jagged spikes → crystal needles
     for (const dd of [[0.3, 0.3], [3.0, 0.3], [0.3, 3.0], [3.0, 3.0]] as const) {
       prism(c, b.gx + dd[0], b.gy + dd[1], 0.7, 0.7, TU, TT.wall[0], TT.wall[1], TT.wall[2], 6);
       const rp = I(b.gx + dd[0] + 0.35, b.gy + dd[1] + 0.35);
-      roofCone(c, rp.x, rp.y - 6 - TU, cone, cone + 4, TT.cone[0], TT.cone[1]);
-      if (lv >= 4) {
-        // gilded finials on every turret
-        c.fillStyle = lv >= 9 ? '#cfc4ff' : '#ffd24a';
-        c.beginPath();
-        c.arc(rp.x, rp.y - 6 - TU - cone - 5, 2.6, 0, 7);
-        c.fill();
-        c.strokeStyle = lv >= 9 ? '#5a3f9a' : '#8a5c00';
-        c.lineWidth = 1;
-        c.stroke();
+      const ty = rp.y - 6 - TU;
+      if (lv >= 9) {
+        roofCone(c, rp.x, ty, cone * 0.85, cone + 15, TT.cone[0], TT.cone[1]);
+        shard(c, rp.x, ty - cone - 24 + Math.sin(t * 2 + dd[0] * 2.1 + dd[1]) * 2, 3.4);
+      } else if (lv >= 7) {
+        roofCone(c, rp.x, ty, cone, cone + 11, TT.cone[0], TT.cone[1]);
+        roofCone(c, rp.x + 7, ty + 5, cone * 0.42, cone * 0.75, TT.cone[1], '#2b0e14');
+      } else if (lv >= 5) {
+        onionDome(c, rp.x, ty, cone * 0.95, TT.cone[0], TT.cone[1]);
+      } else if (lv >= 3) {
+        crenelTop(c, b.gx + dd[0], b.gy + dd[1], 0.7, 0.7, 6 + TU, TT.wallB, TT.wall);
+      } else {
+        roofCone(c, rp.x, ty, cone, cone + 4, TT.cone[0], TT.cone[1]);
+      }
+    }
+    // from the granite tier up, twin gatehouse towers flank the gate
+    if (lv >= 3) {
+      for (const gx2 of [0.95, 2.55] as const) {
+        const GH2 = W + 14;
+        prism(c, b.gx + gx2, b.gy + 3.0, 0.5, 0.5, GH2, TT.wall[0], TT.wall[1], TT.wall[2], 4);
+        const gp2 = I(b.gx + gx2 + 0.25, b.gy + 3.25);
+        const gty = gp2.y - 4 - GH2;
+        if (lv >= 9) roofCone(c, gp2.x, gty, 6.5, 17, TT.cone[0], TT.cone[1]);
+        else if (lv >= 7) roofCone(c, gp2.x, gty, 7.5, 12, TT.cone[0], TT.cone[1]);
+        else if (lv >= 5) onionDome(c, gp2.x, gty, 6.5, TT.cone[0], TT.cone[1]);
+        else crenelTop(c, b.gx + gx2, b.gy + 3.0, 0.5, 0.5, 4 + GH2, TT.wallB, TT.wall);
       }
     }
     prism(c, b.gx + 1.25, b.gy + 1.25, 1.5, 1.5, 18, TT.wall[0], TT.wall[1], TT.wall[2], 18 + W);
-    // crown roof rides the same tier theme as the rest of the castle
-    roof(c, b.gx + 1.25, b.gy + 1.25, 1.5, 1.5, 36 + W, 24 + (lv - 1) * 2, TT.roof[0], TT.roof[1], TT.roof[2]);
+    // the CROWN is a different structure each tier: gabled roof → battlement
+    // deck → grand onion dome → jagged obsidian spire → crystal-crowned needle
+    const cc = I(b.gx + 2, b.gy + 2);
+    const crownTop = cc.y - 36 - W;
+    if (lv >= 9) {
+      roofCone(c, cc.x, crownTop, 15, 34 + (lv - 9) * 4, TT.cone[0], TT.cone[1]);
+      const bob = Math.sin(t * 1.6) * 3;
+      const sy = crownTop - 50 - (lv - 9) * 4 + bob;
+      shard(c, cc.x, sy, 6.5);
+      c.save();
+      c.strokeStyle = 'rgba(201,166,255,.6)';
+      c.lineWidth = 1.6;
+      c.setLineDash([6, 5]);
+      c.lineDashOffset = -t * 14;
+      c.beginPath();
+      c.ellipse(cc.x, sy, 16, 6.5, 0, 0, 7);
+      c.stroke();
+      c.restore();
+    } else if (lv >= 7) {
+      roofCone(c, cc.x, crownTop, 16, 30 + (lv - 7) * 3, TT.cone[0], TT.cone[1]);
+      roofCone(c, cc.x - 10, crownTop + 6, 6.5, 11, TT.cone[1], '#2b0e14');
+      roofCone(c, cc.x + 10, crownTop + 6, 6.5, 11, TT.cone[1], '#2b0e14');
+    } else if (lv >= 5) {
+      onionDome(c, cc.x, crownTop, 15 + (lv - 5) * 1.5, TT.cone[0], TT.cone[1]);
+    } else if (lv >= 3) {
+      crenelTop(c, b.gx + 1.25, b.gy + 1.25, 1.5, 1.5, 36 + W, TT.wallB, TT.wall);
+    } else {
+      roof(c, b.gx + 1.25, b.gy + 1.25, 1.5, 1.5, 36 + W, 24 + (lv - 1) * 2, TT.roof[0], TT.roof[1], TT.roof[2]);
+    }
     const gf = I(b.gx + 0.55, b.gy + 3.45), ge = I(b.gx + 3.45, b.gy + 3.45);
     for (const pt of [gf, ge]) pt.y -= 10;
     const gp = lp(gf, ge, 0.5);
@@ -676,47 +722,68 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     c.translate(cp.x, cp.y - 19);
     c.rotate(aim);
     const rec = (b.recoil ?? 0) > 0 ? b.recoil! * 6 : 0;
-    c.fillStyle = lv >= 9 ? '#352b52' : lv >= 4 ? '#1a1e26' : '#232833';
-    c.beginPath();
-    c.moveTo(-rec - 4, -BT);
-    c.lineTo(barrelLen - rec, -BT);
-    c.arc(barrelLen - rec, 0, BT, -Math.PI / 2, Math.PI / 2);
-    c.lineTo(-rec - 4, BT);
-    c.closePath();
-    c.fill();
-    c.strokeStyle = 'rgba(10,12,16,.7)';
-    c.lineWidth = 1.6;
-    c.stroke();
-    c.fillStyle = '#3d4452';
-    c.fillRect(-rec - 4, -BT, barrelLen + 4, 4);
-    for (const bx of lv >= 3 ? [3, 13, barrelLen - 4] : [3, 13]) {
-      c.fillStyle = '#d8b25c';
-      c.fillRect(bx - rec, -BT - 0.6, 3.2, BT * 2 + 1.2);
-      c.strokeStyle = '#7d5406';
-      c.lineWidth = 0.8;
-      c.strokeRect(bx - rec, -BT - 0.6, 3.2, BT * 2 + 1.2);
-    }
-    c.fillStyle = '#0c0e12';
-    c.beginPath();
-    c.arc(barrelLen + 2 - rec, 0, BT - 3, 0, 7);
-    c.fill();
-    c.strokeStyle = lv >= 5 ? '#d8b25c' : '#4a5160';
-    c.lineWidth = 1.6;
-    c.beginPath();
-    c.arc(barrelLen + 2 - rec, 0, BT - 1.4, 0, 7);
-    c.stroke();
-    c.fillStyle = '#232833';
-    c.beginPath();
-    c.arc(-rec - 5, 0, BT - 1.6, 0, 7);
-    c.fill();
-    c.strokeStyle = 'rgba(10,12,16,.7)';
-    c.lineWidth = 1.4;
-    c.stroke();
+    const bandCol = lv >= 9 ? '#cfc4ff' : '#d8b25c';
+    const bandEdge = lv >= 9 ? '#5a3f9a' : '#7d5406';
+    const drawBarrel = (oy: number, k: number): void => {
+      const bt = BT * k, len = barrelLen * k;
+      c.save();
+      c.translate(0, oy);
+      c.fillStyle = lv >= 9 ? '#352b52' : lv >= 4 ? '#1a1e26' : '#232833';
+      c.beginPath();
+      c.moveTo(-rec - 4, -bt);
+      c.lineTo(len - rec, -bt);
+      c.arc(len - rec, 0, bt, -Math.PI / 2, Math.PI / 2);
+      c.lineTo(-rec - 4, bt);
+      c.closePath();
+      c.fill();
+      c.strokeStyle = 'rgba(10,12,16,.7)';
+      c.lineWidth = 1.6;
+      c.stroke();
+      c.fillStyle = lv >= 9 ? '#54487a' : '#3d4452';
+      c.fillRect(-rec - 4, -bt, len + 4, 4 * k);
+      for (const bx of lv >= 3 ? [3, 13, len - 4] : [3, 13]) {
+        c.fillStyle = bandCol;
+        c.fillRect(bx - rec, -bt - 0.6, 3.2, bt * 2 + 1.2);
+        c.strokeStyle = bandEdge;
+        c.lineWidth = 0.8;
+        c.strokeRect(bx - rec, -bt - 0.6, 3.2, bt * 2 + 1.2);
+      }
+      c.fillStyle = lv >= 9 ? '#2a1f4a' : '#0c0e12';
+      c.beginPath();
+      c.arc(len + 2 - rec, 0, bt - 3, 0, 7);
+      c.fill();
+      if (lv >= 9) {
+        // arcane charge glowing in the muzzle
+        c.fillStyle = 'rgba(201,166,255,.95)';
+        c.beginPath();
+        c.arc(len + 2 - rec, 0, (bt - 3) * 0.45, 0, 7);
+        c.fill();
+      }
+      c.strokeStyle = lv >= 5 ? bandCol : '#4a5160';
+      c.lineWidth = 1.6;
+      c.beginPath();
+      c.arc(len + 2 - rec, 0, bt - 1.4, 0, 7);
+      c.stroke();
+      c.fillStyle = '#232833';
+      c.beginPath();
+      c.arc(-rec - 5, 0, bt - 1.6, 0, 7);
+      c.fill();
+      c.strokeStyle = 'rgba(10,12,16,.7)';
+      c.lineWidth = 1.4;
+      c.stroke();
+      c.restore();
+    };
+    // structure per tier: single gun → TWIN guns (obsidian) → massive arcane cannon (mythic)
+    if (lv >= 9) drawBarrel(0, 1.2);
+    else if (lv >= 7) {
+      drawBarrel(-BT * 0.8, 0.74);
+      drawBarrel(BT * 0.8, 0.74);
+    } else drawBarrel(0, 1);
     c.restore();
     if ((b.recoil ?? 0) > 0) b.recoil = b.recoil! - 0.08;
     lvlPips(c, b, s);
   },
-  arrow(c, b, _t) {
+  arrow(c, b, t) {
     const s = 3;
     const lv = b.level;
     // the watchtower climbs with every level
@@ -823,6 +890,28 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     c.moveTo(tp.x + 6 + Math.cos(-1.25) * 6.5, ty + 2 + Math.sin(-1.25) * 6.5);
     c.lineTo(tp.x + 6 + Math.cos(1.25) * 6.5, ty + 2 + Math.sin(1.25) * 6.5);
     c.stroke();
+    // per-tier structure above the deck: merlon ring (granite) → four-post
+    // canopy whose top morphs: gold dome → obsidian spike → crystal beacon
+    if (lv >= 5) {
+      for (const q of [[0.85, 0.85], [2.15, 0.85], [0.85, 2.15], [2.15, 2.15]] as const) {
+        const qp = I(b.gx + q[0], b.gy + q[1]);
+        woodPost(c, qp.x, qp.y - TP - 5, qp.x, qp.y - TP - 30, 2.2);
+      }
+      const ap2 = I(b.gx + 1.5, b.gy + 1.5);
+      const cy2 = ap2.y - TP - 30;
+      if (lv >= 9) {
+        roofCone(c, ap2.x, cy2, 14, 19, TT.cone[0], TT.cone[1]);
+        shard(c, ap2.x, cy2 - 27 + Math.sin(t * 2 + (b.id || 1)) * 2, 3.8);
+      } else if (lv >= 7) {
+        roofCone(c, ap2.x, cy2, 14, 15, TT.cone[0], TT.cone[1]);
+        roofCone(c, ap2.x + 9, cy2 + 5, 5, 8, TT.cone[1], '#2b0e14');
+      } else {
+        onionDome(c, ap2.x, cy2, 10.5, TT.cone[0], TT.cone[1]);
+      }
+    } else if (lv >= 3) {
+      for (const m of [[1.4, 0.68], [0.68, 1.4], [1.4, 2.12], [2.12, 1.4]] as const)
+        prism(c, b.gx + m[0], b.gy + m[1], 0.2, 0.2, 6, TT.wall[0], TT.wall[1], TT.wall[2], TP + 7, false);
+    }
     lvlPips(c, b, s);
   },
   mortar(c, b, _t) {
@@ -903,6 +992,35 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     c.beginPath();
     c.ellipse(cp.x, cp.y - 15.5 - dz, R, R * 0.555, 0, lv >= 2 ? 0 : 0.5, lv >= 2 ? 7 : 2.6);
     c.stroke();
+    if (lv >= 7) {
+      // a second, smaller mortar joins the pit at the obsidian tier
+      const r2 = R * 0.42;
+      const mx = cp.x + R + 9, my = cp.y - 4 - dz;
+      c.fillStyle = '#1c2027';
+      c.beginPath();
+      c.ellipse(mx, my, r2, r2 * 0.555, 0, 0, 7);
+      c.fill();
+      c.fillRect(mx - r2, my - 8, r2 * 2, 8);
+      c.beginPath();
+      c.ellipse(mx, my - 8, r2, r2 * 0.555, 0, 0, 7);
+      c.fill();
+      c.strokeStyle = TT.trim;
+      c.lineWidth = 1.8;
+      c.beginPath();
+      c.ellipse(mx, my - 8, r2, r2 * 0.555, 0, 0, 7);
+      c.stroke();
+      c.fillStyle = lv >= 9 ? '#2a1f4a' : '#05070a';
+      c.beginPath();
+      c.ellipse(mx, my - 8.6, r2 - 3, r2 * 0.555 - 1.8, 0, 0, 7);
+      c.fill();
+    }
+    if (lv >= 9) {
+      // arcane charge seething in the main barrel
+      c.fillStyle = 'rgba(201,166,255,.85)';
+      c.beginPath();
+      c.ellipse(cp.x, cp.y - 23 - dz, (R - 4.5) * 0.5, (R * 0.555 - 2.7) * 0.5, 0, 0, 7);
+      c.fill();
+    }
     if ((b.flash ?? 0) > 0) {
       c.fillStyle = 'rgba(255,190,80,' + b.flash + ')';
       c.beginPath();
@@ -1069,6 +1187,32 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
         c.beginPath();
         c.arc(sp.x + Math.sin(ph * 9 + i) * 5, sp.y - 24 - ph * 14, 1.8, 0, 7);
         c.fill();
+      }
+    }
+    // per-tier structure: a watch annex joins the hall from the granite tier,
+    // its top morphing with the tier; ridge finial + eave horns at the high tiers
+    if (lv >= 3) {
+      const AH = Math.round(H * 0.72);
+      prism(c, b.gx + 0.38, b.gy + 2.42, 0.56, 0.56, AH, TT.wall[0], TT.wall[1], TT.wall[2]);
+      const anp = I(b.gx + 0.66, b.gy + 2.7);
+      const anty = anp.y - AH;
+      if (lv >= 9) {
+        roofCone(c, anp.x, anty, 7, 15, TT.cone[0], TT.cone[1]);
+        shard(c, anp.x, anty - 22 + Math.sin(t * 2.2) * 2, 3);
+      } else if (lv >= 7) {
+        roofCone(c, anp.x, anty, 7.5, 11, TT.cone[0], TT.cone[1]);
+        roofCone(c, anp.x + 5, anty + 3, 3.2, 5.5, TT.cone[1], '#2b0e14');
+      } else if (lv >= 5) {
+        onionDome(c, anp.x, anty, 6.5, TT.cone[0], TT.cone[1]);
+      } else {
+        crenelTop(c, b.gx + 0.38, b.gy + 2.42, 0.56, 0.56, AH, TT.wallB, TT.wall);
+      }
+    }
+    if (lv >= 5) {
+      roofCone(c, M2.x, M2.y, 4.5, 10, TT.cone[0], TT.cone[1]);
+      if (lv >= 7) {
+        roofCone(c, BD.F.x, BD.F.y, 3.2, 7, TT.cone[1], '#2b0e14');
+        roofCone(c, BD.B.x, BD.B.y, 3.2, 7, TT.cone[1], '#2b0e14');
       }
     }
     lvlPips(c, b, s);
