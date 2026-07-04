@@ -15,6 +15,7 @@ import {
   finishNowCostReal,
   REAL_RESEARCH_TIMES,
   fmt,
+  tstr,
   type BuildingType,
   type QuestView,
   type SpellType,
@@ -175,7 +176,11 @@ export function trainTroop(t: TroopType): void {
   }
   void (async () => {
     if (await withVillage(api.train(t))) {
-      SFX.play('tap');
+      SFX.play('build');
+      toast(
+        `${T.emoji} ${T.n} training started — ${tstr(realTrainSeconds(t))}${G.trainQ.length > 1 ? ` · ${G.trainQ.length} in queue` : ''}`,
+        'ok',
+      );
       renderHUD();
       refreshSheet();
     } else SFX.play('err');

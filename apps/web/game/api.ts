@@ -8,6 +8,7 @@ import {
   REAL_BUILD_TIMES,
   REAL_TRAIN_TIMES,
   BUILD,
+  TROOP,
   type ArmyCounts,
   type BuildingType,
   type DeployLogEntry,
@@ -187,6 +188,27 @@ export function hydrate(payload: ServerVillage): void {
     clearUntil: o.clearUntil ?? undefined,
     clearTotalS: o.clearTotalS ?? undefined,
   }));
+  // training finished since the last sync → announce the recruits
+  if (hadState) {
+    const stillQ = new Set(payload.trainQ.map((j) => j.id));
+    const done: Partial<Record<TroopType, number>> = {};
+    for (const j of G.trainQ)
+      if (j.sid !== undefined && !stillQ.has(j.sid)) done[j.type] = (done[j.type] ?? 0) + 1;
+    const doneTypes = Object.keys(done) as TroopType[];
+    for (const tt of doneTypes) {
+      const T = TROOP[tt];
+      const n = done[tt]!;
+      toast(`${T.emoji} ${T.n}${n > 1 ? ` ×${n}` : ''} ready for battle!`, 'ok');
+    }
+    if (doneTypes.length) SFX.play('done');
+    // research finished on its own timer → announce the power-up
+    if (G.research && !payload.research) {
+      const rt = G.research.troop;
+      const newLv = payload.troopLv[rt];
+      if (newLv && newLv > (G.troopLv[rt] ?? 1))
+        toast(`⚗️ ${TROOP[rt].emoji} ${TROOP[rt].n} is now Lv ${newLv}!`, 'ok');
+    }
+  }
   G.army = { ...payload.army };
   G.spells = { ...payload.spells };
   G.troopLv = { ...payload.troopLv };
