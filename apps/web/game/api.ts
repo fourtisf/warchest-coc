@@ -53,6 +53,7 @@ export interface ServerVillage {
   army: ArmyCounts;
   spells: SpellCounts;
   troopLv: Partial<Record<TroopType, number>>;
+  lastArmy: { troops?: Partial<Record<TroopType, number>>; spells?: Partial<Record<SpellType, number>> } | null;
   research: { troop: TroopType; finishesAt: number; totalS: number | null } | null;
   trainQ: Array<{ id: number; type: TroopType; finishesAt: number | null; totalS: number }>;
   questDone: Record<string, boolean>;
@@ -212,6 +213,7 @@ export function hydrate(payload: ServerVillage): void {
   G.army = { ...payload.army };
   G.spells = { ...payload.spells };
   G.troopLv = { ...payload.troopLv };
+  G.lastArmy = payload.lastArmy ?? null;
   G.research = payload.research
     ? {
         troop: payload.research.troop,
@@ -262,6 +264,14 @@ export const api = {
   train: (troop: TroopType) => call<ServerVillage>('POST', '/village/train', { troop }),
   research: (troop: TroopType) => call<ServerVillage>('POST', '/village/research', { troop }),
   researchNow: () => call<ServerVillage>('POST', '/village/research-now', {}),
+  retrain: () => call<ServerVillage>('POST', '/village/retrain', {}),
+  upgradeWalls: (fromLevel: number) =>
+    call<ServerVillage>('POST', '/village/upgrade-walls', { fromLevel }),
+  pushKey: () => call<{ key: string }>('GET', '/push/key'),
+  pushSubscribe: (endpoint: string, keys: { p256dh: string; auth: string }) =>
+    call<{ ok: true }>('POST', '/push/subscribe', { endpoint, keys }),
+  pushUnsubscribe: (endpoint: string) =>
+    call<{ ok: true }>('POST', '/push/unsubscribe', { endpoint }),
   brew: (spell: SpellType) => call<ServerVillage>('POST', '/village/brew', { spell }),
   rushTraining: () => call<ServerVillage>('POST', '/village/rush-training', {}),
   clearObstacle: (obstacleId: number) =>

@@ -98,7 +98,8 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
     <div class="lootRow"><span>Mana looted</span><b style="color:var(--mana2)">🔮 <span id="resM">0</span></b></div>
     <div class="lootRow"><span>$WAR earned</span><b style="color:var(--war)">◆ <span id="resW">0</span></b></div>
     <div class="lootRow"><span>Trophies</span><b id="resT" style="color:var(--gold2)">+0</b></div>
-    <button class="btn" id="resHome" style="width:100%;margin-top:16px;padding:12px">Return Home</button>
+    <button class="btn mana" id="resRetrain" style="width:100%;margin-top:16px;padding:11px;display:none">🔁 Retrain this army</button>
+    <button class="btn" id="resHome" style="width:100%;margin-top:10px;padding:12px">Return Home</button>
   </div>
 </div>
 
@@ -155,6 +156,10 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
     <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
       <span style="font-weight:600">Invite friends <span style="color:var(--war);font-weight:700;font-size:11.5px">earn ◆25</span></span>
       <button class="btn ghost" id="inviteBtn">Copy link</button>
+    </div>
+    <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+      <span style="font-weight:600">Notifications <span style="color:var(--dim);font-weight:600;font-size:11px">raids · builds · research</span></span>
+      <button class="btn ghost" id="pushToggle">Off</button>
     </div>
     <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
       <span style="font-weight:600">Music</span><button class="btn ghost" id="musicToggle">On</button>

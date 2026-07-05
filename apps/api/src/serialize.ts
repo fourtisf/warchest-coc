@@ -44,6 +44,7 @@ export function serializeVillage(v: FullVillage, user: User, now = new Date()): 
     army: armyOf(v.army),
     spells: spellsOf(v.army),
     troopLv: levelsOf(v.army),
+    lastArmy: v.lastArmyJson ?? null,
     research:
       v.army.researchTroop && v.army.researchUntil
         ? {

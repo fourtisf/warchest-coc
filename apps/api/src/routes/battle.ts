@@ -20,6 +20,7 @@ import { materializeVillage, statOf } from '../materialize';
 import { checkQuests } from '../quests';
 import { SPELL_COLUMN, armyOf, asType, capOf, keepLv, levelsOf, spellsOf } from '../rules';
 import { serializeVillage } from '../serialize';
+import { pushToUser } from '../push';
 import { bumpDaily, getDaily } from '../store';
 import { requireUser } from './auth';
 
@@ -286,6 +287,19 @@ export function battleRoutes(app: FastifyInstance): void {
       }
     }
 
+    // "retrain" preset: exactly what this raid consumed (troops + spells)
+    if (outcome.started) {
+      const usedT: Record<string, number> = {};
+      const usedS: Record<string, number> = {};
+      for (const e of log) {
+        if (e.kind === 'deploy') usedT[e.troop] = (usedT[e.troop] ?? 0) + 1;
+        else if (e.kind === 'spell') usedS[e.spell] = (usedS[e.spell] ?? 0) + 1;
+      }
+      await db.village.update({
+        where: { id: v.id },
+        data: { lastArmyJson: { troops: usedT, spells: usedS } as object },
+      });
+    }
     await db.battle.update({
       where: { id },
       data: {
@@ -309,6 +323,18 @@ export function battleRoutes(app: FastifyInstance): void {
       create: { seasonId, userId: user.id, trophies: v.trophies },
       update: { trophies: v.trophies },
     });
+
+    // tell the defender the moment it happens (fire-and-forget)
+    if (battle.defenderId && outcome.started) {
+      const who =
+        user.name ?? (user.wallet ? user.wallet.slice(0, 4) + '…' : 'A raider');
+      void pushToUser(battle.defenderId, {
+        title: '⚔️ Your village was raided!',
+        body: `${who} destroyed ${Math.floor(outcome.pct)}% and took ${outcome.lootG > 0 ? '🪙' + outcome.lootG : 'nothing'} — watch the replay and take revenge!`,
+        url: '/play',
+        tag: 'raid',
+      });
+    }
 
     const fresh = await materializeVillage(user.id, now);
     await checkQuests(fresh, !!user.wallet);

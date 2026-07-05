@@ -45,6 +45,11 @@ export const ENV = {
 
   ADMIN_WALLET: process.env.ADMIN_WALLET ?? '',
 
+  // Web Push (VAPID) — generated once by deploy/vps-deploy.sh
+  VAPID_PUBLIC_KEY: process.env.VAPID_PUBLIC_KEY ?? '',
+  VAPID_PRIVATE_KEY: process.env.VAPID_PRIVATE_KEY ?? '',
+  VAPID_SUBJECT: process.env.VAPID_SUBJECT ?? 'mailto:admin@warchest.fun',
+
   // battle validation bounds
   SCOUT_TTL_MIN: num(process.env.SCOUT_TTL_MIN, 30),
   MAX_PREROLL_TICKS: num(process.env.MAX_PREROLL_TICKS, 60 * 600),

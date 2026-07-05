@@ -4,6 +4,12 @@ import './globals.css';
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://warchest.fun'),
+  manifest: '/manifest.json',
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'WARCHEST' },
+  icons: {
+    icon: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+    apple: [{ url: '/icon-192.png', sizes: '192x192', type: 'image/png' }],
+  },
   title: 'WARCHEST — Build. Raid. Earn.',
   description:
     'Build your warcamp, raid real players, earn $WAR on Solana. Free in your browser — no download.',

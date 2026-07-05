@@ -19,6 +19,7 @@ model User {
   banned    Boolean   @default(false)
   isAdmin   Boolean   @default(false)
   village   Village?
+  pushSubs  PushSub[]
   ledger    WarLedger[]
   claims    Claim[]
   attacks   Battle[]  @relation("attacker")
@@ -45,6 +46,8 @@ model Village {
   dailyStreak   Int        @default(0)
   /// obstacle respawn clock
   lastObstAt    DateTime?
+  /// troops+spells consumed in the last resolved raid ("retrain" preset)
+  lastArmyJson  Json?
   buildings     Building[]
   obstacles     Obstacle[]
   army          Army?
@@ -111,6 +114,19 @@ model Army {
   researchTroop  String?
   researchUntil  DateTime?
   researchTotalS Float?
+}
+
+model PushSub {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  failCount Int      @default(0)
+
+  @@index([userId])
 }
 
 model TrainJob {

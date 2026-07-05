@@ -426,6 +426,52 @@ export const uiFinishCost = (tLeft: number): number => finishNowCostReal(tLeft);
 export const uiResearchSeconds = (target: number): number =>
   (REAL_RESEARCH_TIMES[target - 1] ?? 0) / serverConfig.timeScale;
 
+let retrainInFlight = false;
+/** One tap: queue exactly the troops (and spells) the last raid consumed. */
+export function retrainArmy(): void {
+  if (retrainInFlight) return;
+  const last = G.lastArmy;
+  const troops = Object.entries(last?.troops ?? {}).filter(([, n]) => (n ?? 0) > 0);
+  if (!troops.length) {
+    toast('No previous raid army to retrain', 'warn');
+    return;
+  }
+  retrainInFlight = true;
+  void (async () => {
+    try {
+      if (await withVillage(api.retrain())) {
+        const total = troops.reduce((a, [, n]) => a + (n ?? 0), 0);
+        SFX.play('build');
+        toast(`🔁 Retraining ${total} troops from your last raid…`, 'ok');
+        renderHUD();
+        refreshSheet();
+      } else SFX.play('err');
+    } finally {
+      retrainInFlight = false;
+    }
+  })();
+}
+
+let wallsInFlight = false;
+/** Upgrade every wall of `fromLevel` in one tap. */
+export function upgradeAllWalls(fromLevel: number): void {
+  if (wallsInFlight) return;
+  wallsInFlight = true;
+  const count = G.buildings.filter((b) => b.type === 'wall' && b.level === fromLevel).length;
+  void (async () => {
+    try {
+      if (await withVillage(api.upgradeWalls(fromLevel))) {
+        SFX.play('done');
+        toast(`🧱 ${count} walls upgraded to Lv ${fromLevel + 1}!`, 'ok');
+        renderHUD();
+        refreshSheet();
+      } else SFX.play('err');
+    } finally {
+      wallsInFlight = false;
+    }
+  })();
+}
+
 /* ------------------------------ War Lab ------------------------------ */
 let researchInFlight = false;
 export function researchTroop(t: TroopType): void {

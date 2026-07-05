@@ -230,6 +230,67 @@ export function villageRoutes(app: FastifyInstance): void {
     });
   });
 
+  // one-tap "train the same army as my last raid" (troops + spells preset)
+  act('retrain', z.object({}), async (v, _body, now) => {
+    const last = (v.lastArmyJson ?? null) as
+      | { troops?: Record<string, number>; spells?: Record<string, number> }
+      | null;
+    const troopsWanted = Object.entries(last?.troops ?? {}).filter(([, n]) => n > 0);
+    if (!troopsWanted.length) throw new RuleError('bad', 'No previous raid army to retrain');
+    const bl = maxBarracksLv(v.buildings, now);
+    let manaCost = 0;
+    let houseNeed = 0;
+    const jobs: Array<{ villageId: string; troopType: string; totalS: number }> = [];
+    for (const [t0, n] of troopsWanted) {
+      const t = asTroop(t0);
+      if (TROOP[t].unlock > bl)
+        throw new RuleError('unlock', `Requires Barracks Level ${TROOP[t].unlock}`);
+      manaCost += TROOP[t].cost * n;
+      houseNeed += TROOP[t].house * n;
+      for (let i = 0; i < n; i++)
+        jobs.push({ villageId: v.id, troopType: t, totalS: trainSeconds(t) });
+    }
+    if (housingUsed(v.army, v.trainJobs) + houseNeed > armyCap(v.buildings, now))
+      throw new RuleError('housing', 'Army camps are full');
+    // brew the spells back too — but only if the whole set fits the rack
+    const spellsWanted = Object.entries(last?.spells ?? {}).filter(([, n]) => n > 0);
+    let spellCost = 0;
+    let spellCount = 0;
+    for (const [s0, n] of spellsWanted) {
+      spellCost += SPELL[asSpell(s0)].cost * n;
+      spellCount += n;
+    }
+    const rack =
+      v.army.spellHeal + v.army.spellRage + v.army.spellBolt + v.army.spellFreeze;
+    const brewToo = spellCount > 0 && rack + spellCount <= SPELL_CAP;
+    const total = manaCost + (brewToo ? spellCost : 0);
+    if (v.mana < total) throw new RuleError('poor', 'Not enough Mana');
+    await payRes(v, 'm', total, 'spend', 'retrain');
+    await prisma().trainJob.createMany({ data: jobs });
+    if (brewToo) {
+      const inc: Record<string, { increment: number }> = {};
+      for (const [s0, n] of spellsWanted) inc[SPELL_COLUMN[asSpell(s0)]] = { increment: n };
+      await prisma().army.update({ where: { villageId: v.id }, data: inc });
+    }
+  });
+
+  // upgrade EVERY wall of a level at once — 250 taps was nobody's idea of fun
+  act('upgrade-walls', z.object({ fromLevel: z.number().int().min(1).max(9) }), async (v, body: { fromLevel: number }, now) => {
+    const walls = v.buildings.filter(
+      (b) => b.type === 'wall' && b.level === body.fromLevel && !isBusy(b, now),
+    );
+    if (!walls.length) throw new RuleError('bad', 'No walls at that level');
+    if (body.fromLevel >= keepLv(v.buildings))
+      throw new RuleError('keep', `Requires Keep Level ${body.fromLevel + 1}`);
+    const cost = BUILD.wall.lv[body.fromLevel]!.c * walls.length;
+    if (v.gold < cost) throw new RuleError('poor', 'Not enough Gold');
+    await payRes(v, 'g', cost, 'spend', `walls:${body.fromLevel + 1}x${walls.length}`);
+    await prisma().building.updateMany({
+      where: { villageId: v.id, type: 'wall', level: body.fromLevel },
+      data: { level: { increment: 1 } },
+    });
+  });
+
   // War Lab research: one troop at a time, gated by lab level (CoC-style)
   act('research', z.object({ troop: z.string() }), async (v, body: { troop: string }, now) => {
     const t = asTroop(body.troop);

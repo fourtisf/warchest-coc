@@ -143,6 +143,8 @@ export interface GState {
   troopLv: Partial<Record<TroopType, number>>;
   /** active research, if any */
   research: { troop: TroopType; finishesAt: number; total: number } | null;
+  /** troops+spells consumed in the last raid — the "retrain" preset */
+  lastArmy: { troops?: Partial<Record<TroopType, number>>; spells?: Partial<Record<SpellType, number>> } | null;
   trainQ: TrainJob[];
   stat: GameStat;
   questDone: Record<string, boolean>;
@@ -174,6 +176,7 @@ export function freshState(): GState {
     spells: { heal: 0, rage: 0, bolt: 0, freeze: 0 },
     troopLv: {},
     research: null,
+    lastArmy: null,
     trainQ: [],
     stat: {
       trained: 0, wins: 0, raids: 0, warClaimed: 0, gCollected: 0, mCollected: 0,

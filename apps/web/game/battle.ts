@@ -356,6 +356,10 @@ function showResult(o: BattleOutcomeDto): void {
   $('resM').textContent = fmt(o.lootM);
   $('resW').textContent = String(o.warEarned);
   $('resT').textContent = (o.trophyDelta >= 0 ? '+' : '') + o.trophyDelta;
+  const rt = $('resRetrain');
+  const canRetrain = !!G.lastArmy && Object.values(G.lastArmy.troops ?? {}).some((n) => (n ?? 0) > 0);
+  rt.style.display = canRetrain ? 'block' : 'none';
+  rt.textContent = '🔁 Retrain this army';
   openOv('result');
   SFX.play(o.win ? 'win' : 'lose');
   updateQuestBadge();

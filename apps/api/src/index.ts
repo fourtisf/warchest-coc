@@ -8,6 +8,7 @@ import { authRoutes } from './routes/auth';
 import { battleRoutes } from './routes/battle';
 import { claimRoutes } from './routes/claim';
 import { metaRoutes } from './routes/meta';
+import { pushRoutes } from './routes/push';
 import { villageRoutes } from './routes/village';
 
 const app = Fastify({ logger: true });
@@ -30,6 +31,7 @@ await app.register(
     battleRoutes(api);
     claimRoutes(api);
     metaRoutes(api);
+    pushRoutes(api);
     adminRoutes(api);
   },
   { prefix: '/api' },

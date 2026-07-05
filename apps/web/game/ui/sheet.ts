@@ -41,7 +41,9 @@ import {
   finishNow,
   researchNow,
   researchTroop,
+  retrainArmy,
   rushTraining,
+  upgradeAllWalls,
   uiResearchSeconds,
   startMove,
   startPlace,
@@ -206,6 +208,19 @@ export function renderSheet(): void {
       </div>`;
     }
     h += '</div>';
+    // one-tap retrain of the last raid's army
+    if (G.lastArmy && Object.values(G.lastArmy.troops ?? {}).some((n) => (n ?? 0) > 0)) {
+      const parts: string[] = [];
+      let cost = 0;
+      for (const [t0, n] of Object.entries(G.lastArmy.troops ?? {})) {
+        if (!n) continue;
+        const tt = t0 as TroopType;
+        parts.push(`${TROOP[tt].emoji}×${n}`);
+        cost += TROOP[tt].cost * n;
+      }
+      h += `<div class="row" style="margin:14px 0 4px"><b style="font-size:13px">🔁 Last raid: ${parts.join(' ')}</b><span class="spacer"></span>
+        <button class="btn mana" data-act="retrain">Retrain ${costHTML('m', cost)}</button></div>`;
+    }
     // War Lab status strip
     if (labNow >= 1) {
       if (G.research) {
@@ -284,6 +299,12 @@ export function renderSheet(): void {
         ⬆ Upgrade ${costHTML(B.res, nxt.c)} · ${tstr(uiBuildSeconds(b.type, b.level + 1))}</button>`;
       else h += `<button class="btn" disabled style="flex:1.5">★ Max level</button>`;
       h += `<button class="btn ghost" data-act="move" data-arg="${b.id}">✥ Move</button></div>`;
+      if (b.type === 'wall' && nxt && up.ok) {
+        const sameLv = G.buildings.filter((x) => x.type === 'wall' && x.level === b.level).length;
+        if (sameLv > 1)
+          h += `<button class="btn" style="width:100%;margin-top:8px" data-act="upgWalls" data-arg="${b.level}">
+            🧱 Upgrade ALL Lv ${b.level} walls (×${sameLv}) ${costHTML('g', nxt.c * sameLv)}</button>`;
+      }
       if (nxt && !up.ok) {
         h += `<div class="meta" style="margin-top:8px;color:var(--bad)">${up.why}</div>`;
         if (up.why?.startsWith('Requires Keep'))
@@ -385,6 +406,10 @@ export function initSheet(): void {
     else if (act === 'clear') {
       const ob = G.obstacles.find((o) => o.id === Number(arg));
       if (ob) clearObstacle(ob);
+    } else if (act === 'retrain') {
+      retrainArmy();
+    } else if (act === 'upgWalls') {
+      upgradeAllWalls(Number(arg));
     } else if (act === 'rsch') {
       researchTroop(arg as TroopType);
     } else if (act === 'rschNow') {

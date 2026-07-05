@@ -6,6 +6,8 @@
  */
 import { prisma } from '@warchest/db';
 import { ENV } from './env';
+import { pushReady } from './push';
+import { sweepCompletions } from './push-sweep';
 import { sendWar } from './solana';
 
 const MAX_ATTEMPTS = 5;
@@ -57,7 +59,16 @@ async function processOne(): Promise<boolean> {
   return true;
 }
 
-console.log(`warchest-worker up (mode=${ENV.CLAIM_MODE}, cluster=${ENV.SOLANA_CLUSTER})`);
+console.log(`warchest-worker up (mode=${ENV.CLAIM_MODE}, cluster=${ENV.SOLANA_CLUSTER}, push=${pushReady()})`);
+
+// comeback engine: every minute, notify offline players about finished work
+let lastSweep = new Date();
+setInterval(() => {
+  const now = new Date();
+  const since = lastSweep;
+  lastSweep = now;
+  sweepCompletions(since, now).catch((e) => console.error('push sweep error:', e));
+}, 60_000);
 // eslint-disable-next-line no-constant-condition
 while (true) {
   try {

@@ -140,6 +140,23 @@ ok "build complete"
 log "Starting warchest-web / warchest-api / warchest-worker under PM2"
 # delete first: startOrReload keeps the old script path when the config changes
 pm2 delete warchest-web warchest-api warchest-worker >/dev/null 2>&1 || true
+# web-push VAPID keys (generated once, kept in .env)
+if ! grep -q '^VAPID_PUBLIC_KEY=' "$ENV_FILE"; then
+  KEYS=$(cd "$APP_DIR/apps/api" && node -e "const k=require('web-push').generateVAPIDKeys();console.log(k.publicKey+' '+k.privateKey)")
+  echo "VAPID_PUBLIC_KEY=${KEYS% *}" >> "$ENV_FILE"
+  echo "VAPID_PRIVATE_KEY=${KEYS#* }" >> "$ENV_FILE"
+  echo "VAPID_SUBJECT=mailto:admin@warchest.fun" >> "$ENV_FILE"
+  set -a; . "$ENV_FILE"; set +a
+  ok "VAPID keys generated (web push enabled)"
+fi
+
+# nightly database backup (03:17, keep 14 days)
+chmod +x "$APP_DIR/deploy/backup-db.sh"
+cat > /etc/cron.d/warchest-backup <<CRON
+17 3 * * * root $APP_DIR/deploy/backup-db.sh >> /var/log/warchest-backup.log 2>&1
+CRON
+ok "nightly DB backup installed (/var/backups/warchest, 14 kept)"
+
 pm2 startOrReload "$APP_DIR/deploy/ecosystem.config.cjs"
 pm2 save
 pm2 startup systemd -u root --hp /root >/dev/null 2>&1 || true

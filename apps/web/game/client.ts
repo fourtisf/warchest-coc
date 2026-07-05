@@ -24,6 +24,7 @@ import { buildGround } from './ground';
 import { initInput } from './input';
 import { GAME_MARKUP } from './markup';
 import { MUSIC } from './music';
+import { disablePush, enablePush, pushEnabled, pushSupported, registerSW } from './push';
 import { render } from './render';
 import { SFX } from './sfx';
 import { freshState, G, jobOf } from './state';
@@ -69,7 +70,34 @@ function wireButtons(): void {
   $('setBtn').onclick = () => {
     $('nameLabel').textContent = G.playerName ?? '—';
     $('pidLabel').textContent = G.playerId ? '#' + G.playerId : '—';
+    void pushEnabled().then((on) => {
+      $('pushToggle').textContent = on ? 'On' : 'Off';
+    });
     openOv('settings');
+  };
+  $('pushToggle').onclick = () => {
+    const btn = $('pushToggle');
+    if (!pushSupported()) {
+      toast('This browser does not support notifications', 'warn');
+      return;
+    }
+    btn.textContent = '…';
+    void (async () => {
+      try {
+        if (await pushEnabled()) {
+          await disablePush();
+          btn.textContent = 'Off';
+          toast('Notifications off', 'ok');
+        } else {
+          await enablePush();
+          btn.textContent = 'On';
+          toast('🔔 Notifications on — we\'ll ping you about raids, builds & research', 'ok');
+        }
+      } catch (e) {
+        btn.textContent = 'Off';
+        toast(e instanceof Error ? e.message : 'Could not enable notifications', 'warn');
+      }
+    })();
   };
   $('sfxToggle').onclick = () => {
     G.sfx = !G.sfx;
@@ -256,6 +284,9 @@ export function bootGame(root: HTMLElement): () => void {
   initInput();
   wireButtons();
   $('musicToggle').textContent = G.music ? 'On' : 'Off';
+
+  // service worker: push + PWA install (harmless if unsupported)
+  void registerSW();
 
   // open the server session (guest cookie or existing account)
   let disposed = false;
