@@ -338,6 +338,21 @@ export const clanCap = (hallLv: number): number =>
 export const CHAT_MAX_LEN = 200;
 export const CHAT_COOLDOWN_S = 3;
 
+/**
+ * Clan aid (CoC-style requests): caps follow the REQUESTER's own Clan Hall
+ * level — a bigger hall asks for more. Troops are measured in housing space,
+ * resources in raw amount. One open request at a time + a cooldown.
+ */
+export const REQ_TROOP_CAP_BY_HALL = [5, 8, 12, 16, 20, 25, 30, 35, 40, 50] as const;
+export const REQ_RES_CAP_BY_HALL = [
+  5000, 10000, 20000, 35000, 60000, 90000, 130000, 180000, 240000, 300000,
+] as const;
+export const reqTroopCap = (hallLv: number): number =>
+  REQ_TROOP_CAP_BY_HALL[Math.min(Math.max(hallLv, 1), REQ_TROOP_CAP_BY_HALL.length) - 1]!;
+export const reqResCap = (hallLv: number): number =>
+  REQ_RES_CAP_BY_HALL[Math.min(Math.max(hallLv, 1), REQ_RES_CAP_BY_HALL.length) - 1]!;
+export const REQ_COOLDOWN_S = 300;
+
 /* ----------------------- War Lab troop research ----------------------- */
 /** Max research level for every troop. */
 export const TROOP_MAX_LVL = 5;

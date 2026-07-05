@@ -4,8 +4,16 @@
  * clan chat). Chat polls every 4s while the modal is open; only #chatLog is
  * repainted on new messages so the input box never loses focus.
  */
-import { CLAN_CREATE_COST, fmt } from '@warchest/game-core';
-import { api, ApiError, type ChatMsg, type ClanBrief, type ClanDto } from '../api';
+import {
+  CLAN_CREATE_COST,
+  TROOP,
+  TROOP_ORDER,
+  fmt,
+  reqResCap,
+  reqTroopCap,
+  type TroopType,
+} from '@warchest/game-core';
+import { api, ApiError, hydrate, type ChatMsg, type ClanBrief, type ClanDto, type ClanReq } from '../api';
 import { $, $maybe } from '../dom';
 import { SFX } from '../sfx';
 import { G } from '../state';
@@ -22,6 +30,7 @@ const CS = {
   msgs: { global: [] as ChatMsg[], clan: [] as ChatMsg[] },
   lastId: { global: 0, clan: 0 },
   browse: [] as ClanBrief[],
+  reqs: [] as ClanReq[],
   inflight: false,
 };
 
@@ -70,6 +79,99 @@ function chatBoxHTML(): string {
           ? `<div class="meta" style="color:var(--dim);margin-top:8px">${hint}</div>`
           : ''
     }`;
+}
+
+const isMine = (uid: string): boolean => uid.slice(-6).toUpperCase() === G.playerId;
+
+/* ------------------------- clan aid (requests) ------------------------- */
+const REQ_ICON: Record<ClanReq['kind'], string> = { troops: '⚔️', gold: '🪙', mana: '🔮' };
+const reqAmt = (r: ClanReq, n: number): string =>
+  r.kind === 'troops' ? `${n} housing` : fmt(n);
+
+function reqCardHTML(r: ClanReq): string {
+  const mine = isMine(r.uid);
+  const remaining = r.amount - r.filled;
+  const pctW = Math.max(0, Math.min(100, (r.filled / r.amount) * 100)).toFixed(1);
+  let controls = '';
+  if (mine) {
+    controls = `<button class="btn ghost" data-cact="reqCancel" style="padding:5px 10px;font-size:11px">Cancel</button>`;
+  } else if (r.kind === 'troops') {
+    const btns = TROOP_ORDER.filter((t) => G.army[t] > 0 && TROOP[t].house <= remaining)
+      .map(
+        (t) =>
+          `<button class="btn ghost" data-cact="donT" data-arg="${r.id}:${t}" style="padding:4px 8px;font-size:12px" title="Send 1 ${TROOP[t].n} (${TROOP[t].house} housing)">${TROOP[t].emoji}<span style="font-size:10px">×${G.army[t]}</span></button>`,
+      )
+      .join('');
+    controls = btns || `<span class="meta" style="color:var(--dim);font-size:10.5px">no troops that fit</span>`;
+  } else {
+    const stock = Math.floor(r.kind === 'gold' ? G.res.g : G.res.m);
+    const chunk = Math.min(remaining, stock, Math.max(1, Math.ceil(r.amount / 4)));
+    controls = chunk > 0
+      ? `<button class="btn ghost" data-cact="donR" data-arg="${r.id}:${chunk}" style="padding:5px 10px;font-size:11.5px">Give ${REQ_ICON[r.kind]}${fmt(chunk)}</button>`
+      : `<span class="meta" style="color:var(--dim);font-size:10.5px">nothing to give</span>`;
+  }
+  const donors = r.donors.length
+    ? `<div class="meta" style="color:var(--dim);font-size:10.5px;margin-top:3px">🤝 ${r.donors.map((d) => `${esc(d.n)} ${esc(d.t)}`).join(' · ')}</div>`
+    : '';
+  return `<div style="padding:8px 10px;margin-top:6px;background:rgba(242,180,48,.06);border:1px solid rgba(242,180,48,.22);border-radius:10px">
+    <div class="row" style="gap:8px">
+      <span style="font-size:16px">${REQ_ICON[r.kind]}</span>
+      <div style="flex:1;min-width:0">
+        <b style="font-size:12.5px">${mine ? 'You' : esc(r.name)}</b>
+        <span class="meta" style="color:var(--dim);font-size:11px"> needs ${reqAmt(r, r.amount)}</span>
+        <div class="row" style="gap:6px;margin-top:4px"><div class="capBar" style="flex:1"><i style="width:${pctW}%"></i></div>
+          <span style="font-size:10.5px;color:var(--gold2);font-weight:700">${r.kind === 'troops' ? r.filled : fmt(r.filled)}/${reqAmt(r, r.amount)}</span></div>
+        ${donors}
+      </div>
+      <div class="row" style="gap:4px;flex-wrap:wrap;justify-content:flex-end;max-width:46%">${controls}</div>
+    </div>
+  </div>`;
+}
+
+function reqBoardHTML(): string {
+  if (!CS.clan) return '';
+  const myReq = CS.reqs.find((r) => isMine(r.uid));
+  let h = `<div class="row" style="margin:8px 0 2px"><b style="font-size:12.5px">📦 Clan aid</b><span class="spacer"></span>`;
+  if (!myReq) {
+    const tc = reqTroopCap(CS.hallLv), rc = reqResCap(CS.hallLv);
+    h += `<button class="btn ghost" data-cact="reqT" data-arg="${tc}" style="padding:5px 9px;font-size:11px" title="Ask clanmates for troops (max ${tc} housing at your hall level)">⚔️ +${tc}</button>
+      <button class="btn ghost" data-cact="reqG" data-arg="${rc}" style="padding:5px 9px;font-size:11px" title="Ask for Gold (max ${fmt(rc)})">🪙 ${fmt(rc)}</button>
+      <button class="btn ghost" data-cact="reqM" data-arg="${rc}" style="padding:5px 9px;font-size:11px" title="Ask for Mana (max ${fmt(rc)})">🔮 ${fmt(rc)}</button>`;
+  }
+  h += `</div>`;
+  if (!CS.reqs.length && !myReq)
+    h += `<div class="meta" style="color:var(--dim);font-size:11px">Ask your clan for troops or resources — caps grow with your Clan Hall.</div>`;
+  h += CS.reqs.map(reqCardHTML).join('');
+  return `<div id="reqBoard">${h}</div>`;
+}
+
+let lastReqPaint = '';
+function paintReqs(force = false): void {
+  const board = $maybe('reqBoard');
+  if (!board) return;
+  const html = reqBoardHTML();
+  if (!force && html === lastReqPaint) return;
+  lastReqPaint = html;
+  board.outerHTML = html;
+}
+
+/** New reqs payload from the server: refresh the board; pull my own village
+ *  when someone just donated to me (troops/loot landed while I watch). */
+function takeReqs(reqs: ClanReq[] | undefined): void {
+  if (!reqs) return;
+  const myOld = CS.reqs.find((r) => isMine(r.uid));
+  const myNew = reqs.find((r) => isMine(r.uid));
+  CS.reqs = reqs;
+  paintReqs();
+  if (myOld && myNew && myNew.filled > myOld.filled) {
+    const last = myNew.donors[myNew.donors.length - 1];
+    toast(`🤝 ${last ? `${last.n} sent ${last.t}` : 'Your clan is helping'}!`, 'ok');
+    SFX.play('done');
+    void api.me().then(hydrate).catch(() => {});
+  } else if (myOld && !myNew && myOld.filled < myOld.amount) {
+    // request finished between polls (filled off-screen)
+    void api.me().then(hydrate).catch(() => {});
+  }
 }
 
 function clanTabHTML(): string {
@@ -125,6 +227,7 @@ function clanTabHTML(): string {
       <button class="btn ghost" data-cact="leave" style="padding:6px 11px;font-size:11.5px">Leave</button>
     </div>
     <details style="margin:4px 0 8px"><summary style="cursor:pointer;font-size:12px;color:var(--dim)">Members (${c.count})</summary>${members}</details>
+    ${reqBoardHTML()}
     ${chatBoxHTML()}`;
 }
 
@@ -133,6 +236,7 @@ function paintBody(): void {
   if (gBtn) gBtn.classList.toggle('ghost', CS.tab !== 'global');
   if (cBtn) cBtn.classList.toggle('ghost', CS.tab !== 'clan');
   $('clanBody').innerHTML = CS.tab === 'global' ? chatBoxHTML() : clanTabHTML();
+  lastReqPaint = '';
   paintLog();
   const inp = $maybe('chatInput') as HTMLInputElement | null;
   if (inp)
@@ -158,7 +262,8 @@ async function pullChat(initial = false): Promise<void> {
   const ch = CS.tab;
   if (ch === 'clan' && !CS.clan) return;
   try {
-    const { msgs } = await api.chatGet(ch, initial ? undefined : CS.lastId[ch] || undefined);
+    const { msgs, reqs } = await api.chatGet(ch, initial ? undefined : CS.lastId[ch] || undefined);
+    if (ch === 'clan') takeReqs(reqs);
     if (!msgs.length) return;
     if (initial) CS.msgs[ch] = msgs;
     else CS.msgs[ch] = [...CS.msgs[ch], ...msgs].slice(-120);
@@ -327,6 +432,50 @@ export function initClanUI(): () => void {
             paintBody();
           })
           .catch((err: unknown) => toast(err instanceof ApiError ? err.message : 'Could not kick', 'warn'));
+      } else if ((act === 'reqT' || act === 'reqG' || act === 'reqM') && arg) {
+        const kind = act === 'reqT' ? 'troops' : act === 'reqG' ? 'gold' : 'mana';
+        api
+          .clanRequest(kind, Number(arg))
+          .then(({ reqs }) => {
+            CS.reqs = reqs;
+            paintBody();
+            toast('📦 Request posted — your clan can see it now', 'ok');
+            void pullChat(true);
+          })
+          .catch((err: unknown) => toast(err instanceof ApiError ? err.message : 'Could not request', 'warn'));
+      } else if (act === 'reqCancel') {
+        api
+          .clanReqCancel()
+          .then(({ reqs }) => {
+            CS.reqs = reqs;
+            paintBody();
+            toast('Request cancelled', 'ok');
+          })
+          .catch((err: unknown) => toast(err instanceof ApiError ? err.message : 'Could not cancel', 'warn'));
+      } else if (act === 'donT' && arg) {
+        const [id, troop] = arg.split(':');
+        api
+          .clanDonate(Number(id), { troop: troop as TroopType, n: 1 })
+          .then((r) => {
+            hydrate(r.village);
+            CS.reqs = r.reqs;
+            paintReqs(true);
+            toast('🤝 Troop sent!', 'ok');
+            SFX.play('done');
+          })
+          .catch((err: unknown) => toast(err instanceof ApiError ? err.message : 'Could not donate', 'warn'));
+      } else if (act === 'donR' && arg) {
+        const [id, amt] = arg.split(':');
+        api
+          .clanDonate(Number(id), { amount: Number(amt) })
+          .then((r) => {
+            hydrate(r.village);
+            CS.reqs = r.reqs;
+            paintReqs(true);
+            toast('🤝 Sent — good clanmate!', 'ok');
+            SFX.play('coin');
+          })
+          .catch((err: unknown) => toast(err instanceof ApiError ? err.message : 'Could not donate', 'warn'));
       }
       return;
     }

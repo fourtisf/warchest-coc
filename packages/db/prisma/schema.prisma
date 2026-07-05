@@ -22,6 +22,7 @@ model User {
   pushSubs  PushSub[]
   clanMember ClanMember?
   chatMsgs  ChatMessage[]
+  clanRequests ClanRequest[]
   ledger    WarLedger[]
   claims    Claim[]
   attacks   Battle[]  @relation("attacker")
@@ -128,6 +129,27 @@ model Clan {
   createdAt DateTime     @default(now())
   members   ClanMember[]
   messages  ChatMessage[]
+  requests  ClanRequest[]
+}
+
+/// CoC-style aid request: one open ask per member, filled by clanmates.
+model ClanRequest {
+  id         Int      @id @default(autoincrement())
+  clanId     String
+  clan       Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind       String   // 'troops' | 'gold' | 'mana'
+  /// troops: housing space asked; gold/mana: amount asked
+  amount     Int
+  filled     Int      @default(0)
+  /// compact donation log for display: [{n: donorName, t: "🪓×2"}]
+  donorsJson Json     @default("[]")
+  status     String   @default("open") // open | done | cancelled
+  createdAt  DateTime @default(now())
+
+  @@index([clanId, status])
+  @@index([userId, createdAt])
 }
 
 model ClanMember {

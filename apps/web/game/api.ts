@@ -276,7 +276,18 @@ export const api = {
   clanLeave: () => call<{ ok: true }>('POST', '/clan/leave', {}),
   clanKick: (userId: string) => call<{ ok: true; clan: ClanDto }>('POST', '/clan/kick', { userId }),
   chatGet: (ch: 'global' | 'clan', after?: number) =>
-    call<{ me: string; msgs: ChatMsg[] }>('GET', `/chat?ch=${ch}${after ? `&after=${after}` : ''}`),
+    call<{ me: string; msgs: ChatMsg[]; reqs?: ClanReq[] }>(
+      'GET',
+      `/chat?ch=${ch}${after ? `&after=${after}` : ''}`,
+    ),
+  clanRequest: (kind: ClanReq['kind'], amount: number) =>
+    call<{ ok: true; req: ClanReq; reqs: ClanReq[] }>('POST', '/clan/request', { kind, amount }),
+  clanReqCancel: () => call<{ ok: true; reqs: ClanReq[] }>('POST', '/clan/request/cancel', {}),
+  clanDonate: (requestId: number, give: { troop?: TroopType; n?: number; amount?: number }) =>
+    call<{ ok: true; reqs: ClanReq[]; village: ServerVillage }>('POST', '/clan/donate', {
+      requestId,
+      ...give,
+    }),
   chatSend: (ch: 'global' | 'clan', text: string) =>
     call<{ ok: true; msg: ChatMsg }>('POST', '/chat', { ch, text }),
   pushKey: () => call<{ key: string }>('GET', '/push/key'),
@@ -339,6 +350,17 @@ export interface ChatMsg {
   name: string;
   text: string;
   at: number;
+}
+
+/** Clan aid request (troops in housing space, resources in raw amount). */
+export interface ClanReq {
+  id: number;
+  uid: string;
+  name: string;
+  kind: 'troops' | 'gold' | 'mana';
+  amount: number;
+  filled: number;
+  donors: Array<{ n: string; t: string }>;
 }
 
 export interface BattleOutcomeDto {
