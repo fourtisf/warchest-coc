@@ -47,8 +47,14 @@ const timeShort = (at: number): string =>
 
 function msgRow(m: ChatMsg): string {
   const mine = m.uid.slice(-6).toUpperCase() === G.playerId;
+  // in the global room every message carries its clan — tap the badge to find it
+  const badge =
+    CS.tab === 'global' && m.clan
+      ? ` <button data-ctag="${m.clan.tag}" title="Find ${esc(m.clan.name)}"
+          style="background:rgba(242,180,48,.12);border:1px solid rgba(242,180,48,.3);border-radius:7px;color:#ffd977;font:700 10px Rubik,sans-serif;padding:1px 7px;cursor:pointer;vertical-align:1px">⚑ ${esc(m.clan.name)}</button>`
+      : '';
   return `<div style="padding:4px 0;font-size:12.5px;line-height:1.45">
-    <b style="color:${mine ? 'var(--war)' : 'var(--gold2)'}">${esc(m.name)}</b>
+    <b style="color:${mine ? 'var(--war)' : 'var(--gold2)'}">${esc(m.name)}</b>${badge}
     <span style="color:var(--dim);font-size:10.5px"> ${timeShort(m.at)}</span><br>${esc(m.text)}</div>`;
 }
 
@@ -63,11 +69,32 @@ function paintLog(): void {
   if (nearBottom || log.scrollTop === 0) log.scrollTop = log.scrollHeight;
 }
 
+/** Compact clan row used by the global-tab search results. */
+function clanRowHTML(c: ClanBrief): string {
+  const mine = CS.clan?.id === c.id;
+  return `<div class="row" style="padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+    <span style="font-size:15px">🛡️</span>
+    <div style="flex:1;min-width:0"><b style="font-size:12.5px">${esc(c.name)}</b>
+      <span style="color:var(--dim);font-family:monospace;font-size:10px"> ${c.tag}</span></div>
+    <span class="meta" style="color:#ffd24a;font-weight:800">⚡${fmt(c.power)}</span>
+    <span class="meta" style="color:var(--dim)">${c.count} ⚔</span>
+    ${mine ? `<span class="meta" style="color:var(--war);font-weight:800">yours</span>` : `<button class="btn ghost" data-cact="join" data-arg="${c.id}" style="padding:4px 10px;font-size:11px">Join</button>`}
+  </div>`;
+}
+
 function chatBoxHTML(): string {
   const canTalk = CS.tab === 'clan' ? !!CS.clan : CS.hallLv >= 1;
   const hint =
     CS.tab === 'clan' ? '' : CS.hallLv >= 1 ? '' : '🛡️ Build a Clan Hall to talk here — reading is free.';
-  return `<div id="chatLog" style="height:230px;overflow-y:auto;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:6px 10px;margin-top:2px"></div>
+  // global room: find any clan without leaving the conversation
+  const search =
+    CS.tab === 'global'
+      ? `<div class="row" style="gap:8px;margin:2px 0 8px">
+          <input id="gClanSearch" maxlength="20" placeholder="🔍 Find a clan — name or #ID" autocomplete="off"
+            style="flex:1;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.3);color:var(--txt);font:600 12.5px Rubik,sans-serif;outline:none">
+        </div><div id="gClanResults" style="max-height:150px;overflow-y:auto"></div>`
+      : '';
+  return `${search}<div id="chatLog" style="height:230px;overflow-y:auto;background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.07);border-radius:10px;padding:6px 10px;margin-top:2px"></div>
     ${
       canTalk
         ? `<div class="row" style="gap:8px;margin-top:8px">
@@ -261,6 +288,29 @@ function paintBody(): void {
         ($('clanSearch') as HTMLInputElement).focus();
       });
     };
+  const gSearch = $maybe('gClanSearch') as HTMLInputElement | null;
+  if (gSearch) gSearch.oninput = () => runGlobalSearch(gSearch.value.trim());
+}
+
+/** Global-tab clan finder: paints results above the chat without touching it. */
+function runGlobalSearch(q: string): void {
+  const box = $maybe('gClanResults');
+  if (!box) return;
+  if (!q) {
+    box.innerHTML = '';
+    return;
+  }
+  void api
+    .clanList(q)
+    .then(({ clans }) => {
+      const cur = ($maybe('gClanSearch') as HTMLInputElement | null)?.value.trim();
+      const out = $maybe('gClanResults');
+      if (!out || cur !== q) return; // stale response — a newer query is typing
+      out.innerHTML = clans.length
+        ? clans.slice(0, 6).map(clanRowHTML).join('')
+        : `<div class="meta" style="color:var(--dim);padding:4px 0 8px">No clan found for “${esc(q)}”.</div>`;
+    })
+    .catch(() => {});
 }
 
 async function pullChat(initial = false): Promise<void> {
@@ -412,6 +462,7 @@ export function initClanUI(): () => void {
             CS.clan = clan;
             toast(`🛡️ Welcome to ${clan.name}!`, 'ok');
             SFX.play('done');
+            CS.tab = 'clan'; // land in the new home right away
             paintBody();
             void pullChat(true);
           })
@@ -485,6 +536,17 @@ export function initClanUI(): () => void {
             SFX.play('coin');
           })
           .catch((err: unknown) => toast(err instanceof ApiError ? err.message : 'Could not donate', 'warn'));
+      }
+      return;
+    }
+    // clan badge on a global message → drop it into the finder
+    const tagEl = (e.target as HTMLElement).closest<HTMLElement>('[data-ctag]');
+    if (tagEl) {
+      const inp = $maybe('gClanSearch') as HTMLInputElement | null;
+      if (inp) {
+        inp.value = tagEl.dataset.ctag!;
+        runGlobalSearch(inp.value);
+        inp.scrollIntoView({ block: 'nearest' });
       }
       return;
     }

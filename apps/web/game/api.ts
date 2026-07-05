@@ -354,6 +354,8 @@ export interface ChatMsg {
   name: string;
   text: string;
   at: number;
+  /** sender's clan (badge in global chat; tap to find that clan) */
+  clan?: { tag: string; name: string } | null;
 }
 
 /** Clan aid request (troops in housing space, resources in raw amount). */

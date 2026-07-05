@@ -405,19 +405,23 @@ export function clanRoutes(app: FastifyInstance): void {
       if (!m) bad('Join a clan to use its chat');
       clanId = m!.clanId;
     }
+    // sender's clan rides along — global chat shows it as a tap-to-find badge
+    const withClan = {
+      user: { select: { name: true, clanMember: { select: { clan: { select: { id: true, name: true } } } } } },
+    } as const;
     const msgs = q.after
       ? await db.chatMessage.findMany({
           where: { clanId, id: { gt: q.after } },
           orderBy: { id: 'asc' },
           take: 100,
-          include: { user: { select: { name: true } } },
+          include: withClan,
         })
       : (
           await db.chatMessage.findMany({
             where: { clanId },
             orderBy: { id: 'desc' },
             take: 50,
-            include: { user: { select: { name: true } } },
+            include: withClan,
           })
         ).reverse();
     return {
@@ -428,6 +432,9 @@ export function clanRoutes(app: FastifyInstance): void {
         name: m.user.name ?? 'Commander',
         text: m.text,
         at: m.createdAt.getTime(),
+        clan: m.user.clanMember
+          ? { tag: tagOf(m.user.clanMember.clan.id), name: m.user.clanMember.clan.name }
+          : null,
       })),
       // clan channel carries the aid board too (polled together with chat)
       ...(clanId ? { reqs: await openRequests(clanId) } : {}),
@@ -444,11 +451,11 @@ export function clanRoutes(app: FastifyInstance): void {
     const text = body.text.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX_LEN);
     if (!text) bad('Empty message');
     const now = new Date();
+    const memb = await myMembership(user.id);
     let clanId: string | null = null;
     if (body.ch === 'clan') {
-      const m = await myMembership(user.id);
-      if (!m) bad('Join a clan to use its chat');
-      clanId = m!.clanId;
+      if (!memb) bad('Join a clan to use its chat');
+      clanId = memb!.clanId;
     } else if ((await hallLvOf(user.id, now)) < 1) {
       bad('Build a Clan Hall to talk in the war room');
     }
@@ -458,7 +465,14 @@ export function clanRoutes(app: FastifyInstance): void {
     const msg = await prisma().chatMessage.create({ data: { clanId, userId: user.id, text } });
     return {
       ok: true,
-      msg: { id: msg.id, uid: user.id, name: user.name ?? 'Commander', text, at: msg.createdAt.getTime() },
+      msg: {
+        id: msg.id,
+        uid: user.id,
+        name: user.name ?? 'Commander',
+        text,
+        at: msg.createdAt.getTime(),
+        clan: memb ? { tag: tagOf(memb.clanId), name: memb.clan.name } : null,
+      },
     };
   });
 }
