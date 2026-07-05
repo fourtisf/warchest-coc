@@ -332,6 +332,8 @@ export const api = {
 
 export interface ClanBrief {
   id: string;
+  /** shareable CoC-style tag, e.g. "#X7K2P9" */
+  tag: string;
   name: string;
   desc: string;
   badge: number;

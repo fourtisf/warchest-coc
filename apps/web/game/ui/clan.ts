@@ -189,6 +189,7 @@ function clanTabHTML(): string {
             (c) => `<div class="row" style="padding:8px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
         <span style="font-size:17px">🛡️</span>
         <div style="flex:1;min-width:0"><b style="font-size:13px">${esc(c.name)}</b>
+          <span style="color:var(--dim);font-family:monospace;font-size:10.5px"> ${c.tag}</span>
           ${c.desc ? `<div class="meta" style="color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.desc)}</div>` : ''}</div>
         <span class="meta" style="color:var(--dim)">${c.count} ⚔</span>
         <button class="btn ghost" data-cact="join" data-arg="${c.id}" style="padding:6px 12px;font-size:12px">Join</button></div>`,
@@ -203,7 +204,7 @@ function clanTabHTML(): string {
       </div>
       <div class="row" style="margin:14px 0 4px;gap:8px">
         <b style="font-size:13px;flex:1">Join a clan</b>
-        <input id="clanSearch" maxlength="20" placeholder="Search…"
+        <input id="clanSearch" maxlength="20" placeholder="Name or #ID…"
           style="width:130px;padding:7px 10px;border-radius:9px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.3);color:var(--txt);font:600 12px Rubik,sans-serif;outline:none">
       </div>
       <div id="clanBrowse">${rows}</div>`;
@@ -223,6 +224,8 @@ function clanTabHTML(): string {
   return `<div class="row" style="margin:2px 0 4px">
       <span style="font-size:22px">🛡️</span>
       <div style="flex:1"><b style="font-size:14.5px">${esc(c.name)}</b>
+        <button data-cact="copyTag" data-arg="${c.tag}" title="Copy clan ID — friends can find you with it"
+          style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--dim);font:700 10.5px monospace;padding:2px 7px;margin-left:5px;cursor:pointer">${c.tag} ⧉</button>
         <div class="meta" style="color:var(--dim);font-size:11px">${c.count}/${c.cap} members${c.desc ? ' · ' + esc(c.desc) : ''}</div></div>
       <button class="btn ghost" data-cact="leave" style="padding:6px 11px;font-size:11.5px">Leave</button>
     </div>
@@ -380,6 +383,10 @@ export function initClanUI(): () => void {
       if (act === 'shop') {
         ov.classList.remove('show');
         $('shopBtn').click();
+      } else if (act === 'copyTag' && arg) {
+        const done = (): void => toast(`${arg} copied — share it so friends can find your clan`, 'ok');
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(arg).then(done, () => prompt('Clan ID:', arg));
+        else prompt('Clan ID:', arg);
       } else if (act === 'create') {
         const name = (($maybe('clanName') as HTMLInputElement | null)?.value ?? '').trim();
         if (name.length < 3) {

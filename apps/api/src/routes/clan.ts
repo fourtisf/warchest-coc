@@ -48,6 +48,9 @@ async function myMembership(userId: string) {
   return prisma().clanMember.findUnique({ where: { userId }, include: { clan: true } });
 }
 
+/** Public clan tag, CoC-style: short, uppercase, shareable ("#X7K2P9"). */
+const tagOf = (id: string): string => '#' + id.slice(-6).toUpperCase();
+
 /** Full clan card: members (name + trophies), capacity from the leader's hall. */
 async function clanInfo(clanId: string, now: Date): Promise<object | null> {
   const db = prisma();
@@ -64,6 +67,7 @@ async function clanInfo(clanId: string, now: Date): Promise<object | null> {
   const cap = clanCap(await hallLvOf(clan.leaderId, now));
   return {
     id: clan.id,
+    tag: tagOf(clan.id),
     name: clan.name,
     desc: clan.desc,
     badge: clan.badge,
@@ -91,11 +95,17 @@ export function clanRoutes(app: FastifyInstance): void {
     return { hallLv, clan: m ? await clanInfo(m.clanId, now) : null };
   });
 
-  // browse: biggest clans first, optional name search
+  // browse: biggest clans first; search by name or by "#TAG" (id suffix)
   app.get('/clan/list', async (req) => {
     const { q } = z.object({ q: z.string().max(20).optional() }).parse(req.query ?? {});
+    const qTag = q?.replace(/^#/, '').toLowerCase();
+    const where = q
+      ? qTag && /^[a-z0-9]{3,8}$/.test(qTag)
+        ? { OR: [{ name: { contains: q, mode: 'insensitive' as const } }, { id: { endsWith: qTag } }] }
+        : { name: { contains: q, mode: 'insensitive' as const } }
+      : undefined;
     const clans = await prisma().clan.findMany({
-      where: q ? { name: { contains: q, mode: 'insensitive' } } : undefined,
+      where,
       include: { _count: { select: { members: true } } },
       orderBy: { members: { _count: 'desc' } },
       take: 20,
@@ -103,6 +113,7 @@ export function clanRoutes(app: FastifyInstance): void {
     return {
       clans: clans.map((c) => ({
         id: c.id,
+        tag: tagOf(c.id),
         name: c.name,
         desc: c.desc,
         badge: c.badge,
