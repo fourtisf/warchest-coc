@@ -59,12 +59,19 @@ async function clanInfo(clanId: string, now: Date): Promise<object | null> {
     include: {
       members: {
         orderBy: { joinedAt: 'asc' },
-        include: { user: { select: { id: true, name: true, village: { select: { trophies: true } } } } },
+        include: { user: { select: { id: true, name: true, village: { select: { trophies: true, power: true } } } } },
       },
     },
   });
   if (!clan) return null;
   const cap = clanCap(await hallLvOf(clan.leaderId, now));
+  const members = clan.members.map((m) => ({
+    id: m.user.id,
+    name: m.user.name ?? 'Commander',
+    trophies: m.user.village?.trophies ?? 0,
+    power: m.user.village?.power ?? 0,
+    role: m.role,
+  }));
   return {
     id: clan.id,
     tag: tagOf(clan.id),
@@ -74,12 +81,9 @@ async function clanInfo(clanId: string, now: Date): Promise<object | null> {
     leaderId: clan.leaderId,
     cap,
     count: clan.members.length,
-    members: clan.members.map((m) => ({
-      id: m.user.id,
-      name: m.user.name ?? 'Commander',
-      trophies: m.user.village?.trophies ?? 0,
-      role: m.role,
-    })),
+    power: members.reduce((a, m) => a + m.power, 0),
+    // strongest first — the roster is a power ranking (leader ties broken by join order)
+    members: members.sort((a, b) => b.power - a.power),
   };
 }
 
@@ -95,7 +99,7 @@ export function clanRoutes(app: FastifyInstance): void {
     return { hallLv, clan: m ? await clanInfo(m.clanId, now) : null };
   });
 
-  // browse: biggest clans first; search by name or by "#TAG" (id suffix)
+  // browse: strongest clans first (total member power); search by name or "#TAG"
   app.get('/clan/list', async (req) => {
     const { q } = z.object({ q: z.string().max(20).optional() }).parse(req.query ?? {});
     const qTag = q?.replace(/^#/, '').toLowerCase();
@@ -104,21 +108,31 @@ export function clanRoutes(app: FastifyInstance): void {
         ? { OR: [{ name: { contains: q, mode: 'insensitive' as const } }, { id: { endsWith: qTag } }] }
         : { name: { contains: q, mode: 'insensitive' as const } }
       : undefined;
-    const clans = await prisma().clan.findMany({
+    const db = prisma();
+    const clans = await db.clan.findMany({
       where,
-      include: { _count: { select: { members: true } } },
+      include: { members: { select: { userId: true } } },
       orderBy: { members: { _count: 'desc' } },
-      take: 20,
+      take: 60,
     });
+    const uids = clans.flatMap((c) => c.members.map((m) => m.userId));
+    const vills = uids.length
+      ? await db.village.findMany({ where: { userId: { in: uids } }, select: { userId: true, power: true } })
+      : [];
+    const pw = new Map(vills.map((v) => [v.userId, v.power]));
     return {
-      clans: clans.map((c) => ({
-        id: c.id,
-        tag: tagOf(c.id),
-        name: c.name,
-        desc: c.desc,
-        badge: c.badge,
-        count: c._count.members,
-      })),
+      clans: clans
+        .map((c) => ({
+          id: c.id,
+          tag: tagOf(c.id),
+          name: c.name,
+          desc: c.desc,
+          badge: c.badge,
+          count: c.members.length,
+          power: c.members.reduce((a, m) => a + (pw.get(m.userId) ?? 0), 0),
+        }))
+        .sort((a, b) => b.power - a.power)
+        .slice(0, 20),
     };
   });
 

@@ -191,6 +191,7 @@ function clanTabHTML(): string {
         <div style="flex:1;min-width:0"><b style="font-size:13px">${esc(c.name)}</b>
           <span style="color:var(--dim);font-family:monospace;font-size:10.5px"> ${c.tag}</span>
           ${c.desc ? `<div class="meta" style="color:var(--dim);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(c.desc)}</div>` : ''}</div>
+        <span class="meta" style="color:#ffd24a;font-weight:800">⚡${fmt(c.power)}</span>
         <span class="meta" style="color:var(--dim)">${c.count} ⚔</span>
         <button class="btn ghost" data-cact="join" data-arg="${c.id}" style="padding:6px 12px;font-size:12px">Join</button></div>`,
           )
@@ -216,6 +217,7 @@ function clanTabHTML(): string {
       (m) => `<div class="row" style="padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.07)">
       <span>${m.role === 'leader' ? '👑' : '⚔️'}</span>
       <b style="flex:1;font-size:12.5px">${esc(m.name)}</b>
+      <span class="meta" style="color:#ffd24a;font-weight:800">⚡${fmt(m.power)}</span>
       <span class="meta" style="color:var(--gold2)">🏆 ${m.trophies}</span>
       ${iAmLeader && m.role !== 'leader' ? `<button class="btn ghost" data-cact="kick" data-arg="${m.id}" style="padding:4px 9px;font-size:11px">✕</button>` : ''}
     </div>`,
@@ -226,7 +228,7 @@ function clanTabHTML(): string {
       <div style="flex:1"><b style="font-size:14.5px">${esc(c.name)}</b>
         <button data-cact="copyTag" data-arg="${c.tag}" title="Copy clan ID — friends can find you with it"
           style="background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);border-radius:7px;color:var(--dim);font:700 10.5px monospace;padding:2px 7px;margin-left:5px;cursor:pointer">${c.tag} ⧉</button>
-        <div class="meta" style="color:var(--dim);font-size:11px">${c.count}/${c.cap} members${c.desc ? ' · ' + esc(c.desc) : ''}</div></div>
+        <div class="meta" style="color:var(--dim);font-size:11px">${c.count}/${c.cap} members · <span style="color:#ffd24a;font-weight:800">⚡${fmt(c.power)} clan power</span>${c.desc ? ' · ' + esc(c.desc) : ''}</div></div>
       <button class="btn ghost" data-cact="leave" style="padding:6px 11px;font-size:11.5px">Leave</button>
     </div>
     <details style="margin:4px 0 8px"><summary style="cursor:pointer;font-size:12px;color:var(--dim)">Members (${c.count})</summary>${members}</details>

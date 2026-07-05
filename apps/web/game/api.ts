@@ -338,12 +338,14 @@ export interface ClanBrief {
   desc: string;
   badge: number;
   count: number;
+  /** total member power (villagePower summed) */
+  power: number;
 }
 
 export interface ClanDto extends ClanBrief {
   leaderId: string;
   cap: number;
-  members: Array<{ id: string; name: string; trophies: number; role: 'leader' | 'member' }>;
+  members: Array<{ id: string; name: string; trophies: number; power: number; role: 'leader' | 'member' }>;
 }
 
 export interface ChatMsg {

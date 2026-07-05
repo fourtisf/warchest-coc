@@ -38,6 +38,8 @@ model Village {
   mana          Float      @default(350)
   war           Int        @default(40)
   trophies      Int        @default(10)
+  /// cached strength score (villagePower) — clan power sums these
+  power         Int        @default(0)
   buildersTotal Int        @default(2)
   shieldUntil   DateTime?
   lastSeen      DateTime   @default(now())

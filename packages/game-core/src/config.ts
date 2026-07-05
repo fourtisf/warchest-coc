@@ -353,6 +353,27 @@ export const reqResCap = (hallLv: number): number =>
   REQ_RES_CAP_BY_HALL[Math.min(Math.max(hallLv, 1), REQ_RES_CAP_BY_HALL.length) - 1]!;
 export const REQ_COOLDOWN_S = 300;
 
+/**
+ * Village power — the CoC-ish strength score shown on clan rosters.
+ * Sum of building levels (weighted by kind) + War Lab research + trophies.
+ * Clan power = the sum over all members.
+ */
+export const POWER_W: Record<BuildingType, number> = {
+  keep: 30, mine: 4, well: 4, vault: 5, tank: 5,
+  cannon: 12, arrow: 12, mortar: 14, airdef: 14, wall: 1,
+  barracks: 10, lab: 12, camp: 8, clan: 10, hut: 6, bomb: 2, spring: 2,
+};
+export function villagePower(
+  buildings: ReadonlyArray<{ type: BuildingType; level: number }>,
+  troopLv: Partial<Record<string, number>>,
+  trophies: number,
+): number {
+  let p = Math.max(0, trophies);
+  for (const b of buildings) p += b.level * (POWER_W[b.type] ?? 5);
+  for (const lv of Object.values(troopLv)) p += Math.max(0, (lv ?? 1) - 1) * 15;
+  return Math.round(p);
+}
+
 /* ----------------------- War Lab troop research ----------------------- */
 /** Max research level for every troop. */
 export const TROOP_MAX_LVL = 5;

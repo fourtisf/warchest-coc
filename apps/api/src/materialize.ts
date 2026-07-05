@@ -4,7 +4,7 @@
  * sequentially, and production accrues from timestamps. No server ticks.
  */
 import { prisma, type Army, type Building, type Obstacle, type QuestState, type TrainJob, type Village } from '@warchest/db';
-import { BUILD, MAP, TROOP_MAX_LVL, clamp } from '@warchest/game-core';
+import { BUILD, MAP, TROOP_MAX_LVL, clamp, villagePower } from '@warchest/game-core';
 import { armyOf, asTroop, asType, barracksSpeed, isBusy, levelsOf, occGrid, prodPerSec, trainSeconds } from './rules';
 
 export interface FullVillage extends Village {
@@ -168,10 +168,21 @@ export async function materializeVillage(userId: string, now = new Date()): Prom
     await db.army.update({ where: { villageId: v.id }, data: armyOf(v.army) });
   }
 
+  // 3. refresh the cached strength score (clan rosters sum it)
+  const power = villagePower(
+    v.buildings.map((b) => ({ type: asType(b.type), level: b.level })),
+    levelsOf(v.army),
+    v.trophies,
+  );
   await db.village.update({
     where: { id: v.id },
-    data: { lastSeen: now, ...(statDirty ? { statJson: stat as object } : {}) },
+    data: {
+      lastSeen: now,
+      ...(power !== v.power ? { power } : {}),
+      ...(statDirty ? { statJson: stat as object } : {}),
+    },
   });
+  v.power = power;
   v.statJson = stat as object;
   v.lastSeen = now;
   return v;
