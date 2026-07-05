@@ -7,6 +7,7 @@ import { adminRoutes } from './routes/admin';
 import { authRoutes } from './routes/auth';
 import { battleRoutes } from './routes/battle';
 import { claimRoutes } from './routes/claim';
+import { clanRoutes } from './routes/clan';
 import { metaRoutes } from './routes/meta';
 import { pushRoutes } from './routes/push';
 import { villageRoutes } from './routes/village';
@@ -30,6 +31,7 @@ await app.register(
     villageRoutes(api);
     battleRoutes(api);
     claimRoutes(api);
+    clanRoutes(api);
     metaRoutes(api);
     pushRoutes(api);
     adminRoutes(api);

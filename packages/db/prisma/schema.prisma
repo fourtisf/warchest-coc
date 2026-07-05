@@ -20,6 +20,8 @@ model User {
   isAdmin   Boolean   @default(false)
   village   Village?
   pushSubs  PushSub[]
+  clanMember ClanMember?
+  chatMsgs  ChatMessage[]
   ledger    WarLedger[]
   claims    Claim[]
   attacks   Battle[]  @relation("attacker")
@@ -114,6 +116,42 @@ model Army {
   researchTroop  String?
   researchUntil  DateTime?
   researchTotalS Float?
+}
+
+model Clan {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  desc      String       @default("")
+  /// badge emoji index (client picks the glyph)
+  badge     Int          @default(0)
+  leaderId  String
+  createdAt DateTime     @default(now())
+  members   ClanMember[]
+  messages  ChatMessage[]
+}
+
+model ClanMember {
+  userId   String   @id
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clanId   String
+  clan     Clan     @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  role     String   @default("member") // leader | member
+  joinedAt DateTime @default(now())
+
+  @@index([clanId])
+}
+
+model ChatMessage {
+  id        Int      @id @default(autoincrement())
+  /// null = global channel
+  clanId    String?
+  clan      Clan?    @relation(fields: [clanId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([clanId, id])
 }
 
 model PushSub {

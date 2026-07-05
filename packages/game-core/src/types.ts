@@ -16,6 +16,7 @@ export type BuildingType =
   | 'barracks'
   | 'lab'
   | 'camp'
+  | 'clan'
   | 'hut'
   | 'bomb'
   | 'spring';

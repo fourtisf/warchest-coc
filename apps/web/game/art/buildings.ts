@@ -1493,6 +1493,133 @@ export const ART: Record<BuildingType, BuildingArtFn> = {
     c.fill();
     lvlPips(c, b, s);
   },
+  clan(c, b, t) {
+    const s = 3;
+    const lv = b.level;
+    // the great hall rises with every level and re-themes per prestige tier
+    const H = 22 + (lv - 1) * 5;
+    const RH = 16 + (lv - 1) * 2.5;
+    const TT = tierTheme(lv);
+    bShadow(c, b, s);
+    pad(c, b, s, 'stone');
+    // main hall
+    const BD = lv >= 3
+      ? prism(c, b.gx + 0.4, b.gy + 0.8, 1.95, 1.7, H, TT.wall[0], TT.wall[1], TT.wall[2])
+      : prism(c, b.gx + 0.4, b.gy + 0.8, 1.95, 1.7, H, '#c2925a', '#7d5a30', '#a3773f');
+    faceLines(c, BD.f, BD.F, BD.e, BD.E, 5, 'rgba(0,0,0,.13)', 1);
+    const M2 = lv >= 3
+      ? roof(c, b.gx + 0.4, b.gy + 0.8, 1.95, 1.7, H, RH, TT.roof[0], TT.roof[1], TT.roof[2], 0.18)
+      : roof(c, b.gx + 0.4, b.gy + 0.8, 1.95, 1.7, H, RH, '#c8402f', '#a33325', '#f07a5a', 0.18);
+    // ridge crown morphs per tier: finial cone → onion dome → obsidian spikes → crystal
+    if (lv >= 9) {
+      roofCone(c, M2.x, M2.y, 6, 14, TT.cone[0], TT.cone[1]);
+      shard(c, M2.x, M2.y - 22 + Math.sin(t * 2.1 + (b.id || 1)) * 2, 3.4);
+    } else if (lv >= 7) {
+      roofCone(c, M2.x, M2.y, 6.5, 13, TT.cone[0], TT.cone[1]);
+      roofCone(c, M2.x - 8, M2.y + 4, 3, 6, TT.cone[1], '#2b0e14');
+      roofCone(c, M2.x + 8, M2.y + 4, 3, 6, TT.cone[1], '#2b0e14');
+    } else if (lv >= 5) {
+      onionDome(c, M2.x, M2.y, 7, TT.cone[0], TT.cone[1]);
+    } else if (lv >= 2) {
+      roofCone(c, M2.x, M2.y, 4.5, 9, TT.cone[0], TT.cone[1]);
+    }
+    // round watch tower joins the hall from the granite tier
+    if (lv >= 3) {
+      const TWH = H + 12;
+      prism(c, b.gx + 2.45, b.gy + 0.5, 0.62, 0.62, TWH, TT.wall[0], TT.wall[1], TT.wall[2]);
+      const tp = I(b.gx + 2.76, b.gy + 0.81);
+      const tty = tp.y - TWH;
+      if (lv >= 9) {
+        roofCone(c, tp.x, tty, 7, 16, TT.cone[0], TT.cone[1]);
+        shard(c, tp.x, tty - 23 + Math.sin(t * 2.4) * 2, 2.8);
+      } else if (lv >= 7) roofCone(c, tp.x, tty, 7.5, 12, TT.cone[0], TT.cone[1]);
+      else if (lv >= 5) onionDome(c, tp.x, tty, 6.5, TT.cone[0], TT.cone[1]);
+      else crenelTop(c, b.gx + 2.45, b.gy + 0.5, 0.62, 0.62, TWH, TT.wallB, TT.wall);
+    }
+    // the GREAT BANNER — the clan's colors hang over the front face
+    const cloth = lv >= 5 ? TT.cloth : '#c62f2f';
+    const bm = lp(BD.F, BD.E, 0.6);
+    const bb = lp(BD.f, BD.e, 0.6);
+    const wv = Math.sin(t * 2.6 + (b.id || 1)) * 1.6;
+    const bw = 8.5 + Math.min(lv, 5) * 0.5;
+    c.fillStyle = cloth;
+    c.beginPath();
+    c.moveTo(bm.x - bw, bm.y - 2);
+    c.lineTo(bm.x + bw, bm.y - 2);
+    c.lineTo(bb.x + bw + wv, bb.y - 8);
+    c.lineTo(bb.x + wv * 0.4, bb.y - 4);
+    c.lineTo(bb.x - bw + wv, bb.y - 8);
+    c.closePath();
+    c.fill();
+    c.strokeStyle = 'rgba(0,0,0,.35)';
+    c.lineWidth = 1.2;
+    c.stroke();
+    // heraldic emblem: gold ring + chevron
+    const em = lp(bm, bb, 0.45);
+    c.strokeStyle = lv >= 5 ? '#ffd977' : '#f2d27a';
+    c.lineWidth = 2;
+    c.beginPath();
+    c.arc(em.x, em.y, 4.6, 0, 7);
+    c.stroke();
+    c.beginPath();
+    c.moveTo(em.x - 3, em.y + 2.2);
+    c.lineTo(em.x, em.y - 2.6);
+    c.lineTo(em.x + 3, em.y + 2.2);
+    c.stroke();
+    // door under the banner's right, iron-braced from L4
+    const dm = lp(BD.f, BD.e, 0.24);
+    c.fillStyle = '#3a2814';
+    c.fillRect(dm.x - 5.5, dm.y - 14, 11, 14);
+    c.strokeStyle = '#2b1d0e';
+    c.lineWidth = 1.5;
+    c.strokeRect(dm.x - 5.5, dm.y - 14, 11, 14);
+    if (lv >= 4) {
+      c.strokeStyle = '#8f97a5';
+      c.lineWidth = 1.5;
+      c.beginPath();
+      c.moveTo(dm.x - 5.5, dm.y - 10);
+      c.lineTo(dm.x + 5.5, dm.y - 10);
+      c.moveTo(dm.x - 5.5, dm.y - 4.5);
+      c.lineTo(dm.x + 5.5, dm.y - 4.5);
+      c.stroke();
+    }
+    // rally standard at the gate corner; battle honors join at L3
+    const fp = I(b.gx + 0.55, b.gy + 2.7);
+    woodPost(c, fp.x, fp.y, fp.x, fp.y - 34, 3);
+    const wv2 = Math.sin(t * 3.2 + (b.id || 1)) * 3;
+    c.fillStyle = cloth;
+    c.beginPath();
+    c.moveTo(fp.x, fp.y - 34);
+    c.lineTo(fp.x + 14, fp.y - 31 + wv2);
+    c.lineTo(fp.x, fp.y - 26);
+    c.closePath();
+    c.fill();
+    c.strokeStyle = 'rgba(0,0,0,.3)';
+    c.lineWidth = 1;
+    c.stroke();
+    if (lv >= 3) {
+      c.fillStyle = '#3f7fbf';
+      c.beginPath();
+      c.moveTo(fp.x, fp.y - 24);
+      c.lineTo(fp.x + 11, fp.y - 21.5 + wv2 * 0.7);
+      c.lineTo(fp.x, fp.y - 18);
+      c.closePath();
+      c.fill();
+    }
+    // twin braziers light the hall from the golden tier up
+    if (lv >= 6) {
+      for (const bx of [0.62, 2.3] as const) {
+        const bp = I(b.gx + bx, b.gy + 2.55);
+        c.fillStyle = '#5c6270';
+        c.beginPath();
+        c.ellipse(bp.x, bp.y - 8, 4, 2, 0, 0, 7);
+        c.fill();
+        woodPost(c, bp.x, bp.y, bp.x, bp.y - 8, 2);
+        flame(c, bp.x, bp.y - 10, t + bx, 0.7);
+      }
+    }
+    lvlPips(c, b, s);
+  },
   hut(c, b, t) {
     const s = 2;
     const lv = b.level;

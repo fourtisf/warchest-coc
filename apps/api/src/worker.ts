@@ -69,6 +69,16 @@ setInterval(() => {
   lastSweep = now;
   sweepCompletions(since, now).catch((e) => console.error('push sweep error:', e));
 }, 60_000);
+// chat hygiene: hourly, drop global chatter after 24h and clan chatter after 7d
+setInterval(() => {
+  const db = prisma();
+  const dayAgo = new Date(Date.now() - 24 * 3600e3);
+  const weekAgo = new Date(Date.now() - 7 * 24 * 3600e3);
+  db.chatMessage
+    .deleteMany({ where: { clanId: null, createdAt: { lt: dayAgo } } })
+    .then(() => db.chatMessage.deleteMany({ where: { clanId: { not: null }, createdAt: { lt: weekAgo } } }))
+    .catch((e) => console.error('chat purge error:', e));
+}, 3600_000);
 // eslint-disable-next-line no-constant-condition
 while (true) {
   try {

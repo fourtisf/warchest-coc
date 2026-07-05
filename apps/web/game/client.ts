@@ -40,6 +40,7 @@ import {
 import { resetVillageUnits, tickVillageUnits } from './troops';
 import { world } from './world';
 import { renderHUD } from './ui/hud';
+import { initClanUI } from './ui/clan';
 import { closeOv, fillWallet, initModals, openLeaderboard, openOv, openQuests, refreshMailBadge } from './ui/modals';
 import { initSheet, openSheet, refreshSheet, sheetInfoArg, sheetIs } from './ui/sheet';
 import { toast } from './ui/toasts';
@@ -281,6 +282,7 @@ export function bootGame(root: HTMLElement): () => void {
   renderHUD();
   initSheet();
   initModals();
+  const disposeClan = initClanUI();
   initInput();
   wireButtons();
   $('musicToggle').textContent = G.music ? 'On' : 'Off';
@@ -380,6 +382,7 @@ export function bootGame(root: HTMLElement): () => void {
     cancelAnimationFrame(raf);
     clearInterval(poll);
     clearInterval(mailPoll);
+    disposeClan();
     MUSIC.stop();
     disposeBattle();
     disposeCamera();

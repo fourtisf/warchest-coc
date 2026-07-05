@@ -17,7 +17,7 @@ export function getIcon(kind: 'b' | 't', key: string): HTMLCanvasElement {
   if (kind === 'b') {
     const bKey = key as BuildingType;
     const s = BUILD[bKey].s;
-    const HH: Record<string, number> = { keep: 128, arrow: 106, tank: 80, mine: 78, well: 64, vault: 62, cannon: 60, mortar: 52, barracks: 74, camp: 62, hut: 56, wall: 32, bomb: 26, spring: 24, airdef: 74, lab: 70 };
+    const HH: Record<string, number> = { keep: 128, arrow: 106, tank: 80, mine: 78, well: 64, vault: 62, cannon: 60, mortar: 52, barracks: 74, camp: 62, hut: 56, wall: 32, bomb: 26, spring: 24, airdef: 74, lab: 70, clan: 88 };
     const sc = Math.min(112 / ((s + 1.1) * TW), 78 / (s * TH * 0.9 + (HH[key] ?? 66)));
     g.setTransform(sc, 0, 0, sc, 75, 96);
     const dummy: DrawableBuilding = { id: 9000, type: bKey, gx: -s / 2, gy: -s / 2, level: 1, hp: 1, stored: 0, _list: [] };

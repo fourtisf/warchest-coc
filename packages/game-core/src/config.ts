@@ -233,6 +233,22 @@ export const BUILD: Record<BuildingType, BuildingDef> = {
     ],
     d: 'Houses your trained army.',
   },
+  clan: {
+    n: 'Clan Hall', s: 3, cat: 'core', res: 'g', emoji: '🛡️', max: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    lv: [
+      { hp: 900, c: 4000, t: 60 },
+      { hp: 1150, c: 12000, t: 120 },
+      { hp: 1450, c: 30000, t: 220 },
+      { hp: 1800, c: 70000, t: 320 },
+      { hp: 2200, c: 130000, t: 440 },
+      { hp: 2650, c: 220000, t: 560 },
+      { hp: 3150, c: 340000, t: 700 },
+      { hp: 3700, c: 480000, t: 860 },
+      { hp: 4300, c: 650000, t: 1040 },
+      { hp: 5000, c: 850000, t: 1240 },
+    ],
+    d: 'Join or found a clan and open the war-room chat. Higher halls host more clanmates (as leader).',
+  },
   hut: {
     n: 'Builder Hut', s: 2, cat: 'core', res: 'w', emoji: '🔨', max: [3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
     lv: [{ hp: 260, c: 200, t: 0 }],
@@ -308,8 +324,19 @@ export const TROOP_ORDER: readonly TroopType[] = [
 ];
 export const SHOP_ORDER: readonly BuildingType[] = [
   'cannon', 'arrow', 'mortar', 'airdef', 'wall', 'bomb', 'spring',
-  'mine', 'well', 'vault', 'tank', 'barracks', 'lab', 'camp', 'hut',
+  'mine', 'well', 'vault', 'tank', 'barracks', 'lab', 'camp', 'clan', 'hut',
 ];
+
+/* ------------------------------- Clans -------------------------------- */
+/** Gold cost to found a clan (needs a Clan Hall of any level). */
+export const CLAN_CREATE_COST = 10000;
+/** Clan member capacity by the LEADER's Clan Hall level (index = level-1). */
+export const CLAN_CAP_BY_HALL = [10, 15, 20, 25, 30, 35, 40, 45, 50, 50] as const;
+export const clanCap = (hallLv: number): number =>
+  CLAN_CAP_BY_HALL[Math.min(Math.max(hallLv, 1), CLAN_CAP_BY_HALL.length) - 1]!;
+/** Chat: max message length + min seconds between messages per player. */
+export const CHAT_MAX_LEN = 200;
+export const CHAT_COOLDOWN_S = 3;
 
 /* ----------------------- War Lab troop research ----------------------- */
 /** Max research level for every troop. */
@@ -399,6 +426,7 @@ export const REAL_BUILD_TIMES: Record<BuildingType, readonly number[]> = {
   barracks: [10, 60, 900, 7200, 28800, 86400, 172800, 259200, 345600, 432000],
   lab: [900, 7200, 28800, 86400, 172800, 259200, 345600, 432000, 518400, 604800],
   camp: [10, 60, 900, 7200, 28800, 86400, 172800, 259200, 345600, 432000],
+  clan: [600, 7200, 28800, 86400, 172800, 259200, 345600, 432000, 518400, 604800],
   hut: [0],
   bomb: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
   spring: [0],

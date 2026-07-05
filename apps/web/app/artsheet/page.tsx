@@ -10,7 +10,7 @@ import { ART } from '../../game/art/buildings';
 import type { DrawableBuilding } from '../../game/art/drawable';
 
 const TYPES: BuildingType[] = [
-  'keep', 'barracks', 'arrow', 'cannon', 'mortar', 'airdef', 'lab', 'vault', 'tank',
+  'keep', 'clan', 'barracks', 'arrow', 'cannon', 'mortar', 'airdef', 'lab', 'vault', 'tank',
   'mine', 'well', 'camp', 'hut', 'wall',
 ];
 

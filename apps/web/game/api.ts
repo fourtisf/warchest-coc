@@ -267,6 +267,18 @@ export const api = {
   retrain: () => call<ServerVillage>('POST', '/village/retrain', {}),
   upgradeWalls: (fromLevel: number) =>
     call<ServerVillage>('POST', '/village/upgrade-walls', { fromLevel }),
+  clanMe: () => call<{ hallLv: number; clan: ClanDto | null }>('GET', '/clan/me'),
+  clanList: (q?: string) =>
+    call<{ clans: ClanBrief[] }>('GET', '/clan/list' + (q ? `?q=${encodeURIComponent(q)}` : '')),
+  clanCreate: (name: string, desc?: string) =>
+    call<{ ok: true; clan: ClanDto }>('POST', '/clan/create', { name, ...(desc ? { desc } : {}) }),
+  clanJoin: (clanId: string) => call<{ ok: true; clan: ClanDto }>('POST', '/clan/join', { clanId }),
+  clanLeave: () => call<{ ok: true }>('POST', '/clan/leave', {}),
+  clanKick: (userId: string) => call<{ ok: true; clan: ClanDto }>('POST', '/clan/kick', { userId }),
+  chatGet: (ch: 'global' | 'clan', after?: number) =>
+    call<{ me: string; msgs: ChatMsg[] }>('GET', `/chat?ch=${ch}${after ? `&after=${after}` : ''}`),
+  chatSend: (ch: 'global' | 'clan', text: string) =>
+    call<{ ok: true; msg: ChatMsg }>('POST', '/chat', { ch, text }),
   pushKey: () => call<{ key: string }>('GET', '/push/key'),
   pushSubscribe: (endpoint: string, keys: { p256dh: string; auth: string }) =>
     call<{ ok: true }>('POST', '/push/subscribe', { endpoint, keys }),
@@ -306,6 +318,28 @@ export const api = {
   leaderboard: () =>
     call<{ top: LbRow[]; me: LbRow | null }>('GET', '/leaderboard'),
 };
+
+export interface ClanBrief {
+  id: string;
+  name: string;
+  desc: string;
+  badge: number;
+  count: number;
+}
+
+export interface ClanDto extends ClanBrief {
+  leaderId: string;
+  cap: number;
+  members: Array<{ id: string; name: string; trophies: number; role: 'leader' | 'member' }>;
+}
+
+export interface ChatMsg {
+  id: number;
+  uid: string;
+  name: string;
+  text: string;
+  at: number;
+}
 
 export interface BattleOutcomeDto {
   stars: number;

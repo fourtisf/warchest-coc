@@ -3,6 +3,7 @@ import {
   BUILD,
   LAB_REQ,
   OBSTACLE_COST,
+  clanCap,
   RESEARCH_COST,
   SHOP_ORDER,
   SPELL,
@@ -53,6 +54,7 @@ import {
   uiFinishCost,
   uiTrainSeconds,
 } from '../systems';
+import { clanState, openClanPanel } from './clan';
 
 export type SheetKind = 'shop' | 'army' | 'info' | 'obst' | 'jobs';
 
@@ -284,6 +286,13 @@ export function renderSheet(): void {
     if (L.dmg)
       h += `<div class="stat"><span>Damage</span><b>${Math.round(L.dmg / L.rate!)}/s</b></div><div class="stat"><span>Range</span><b>${L.rng}${L.min ? ' (min ' + L.min + ')' : ''}</b></div>`;
     if (L.cap && b.type === 'camp') h += `<div class="stat"><span>Housing</span><b>${L.cap}</b></div>`;
+    if (b.type === 'clan') {
+      const cs = clanState();
+      h += `<div class="stat"><span>Clanmates (as leader)</span><b>${clanCap(b.level)}</b></div>`;
+      if (cs.clan)
+        h += `<div class="stat"><span>Your clan</span><b>🛡️ ${cs.clan.name.replace(/[<>&]/g, '')} · ${cs.clan.count}/${cs.clan.cap}</b></div>`;
+      h += `<button class="btn" style="width:100%;margin:10px 0 2px" data-act="openClan">🛡️ ${cs.clan ? 'Open the War Room' : 'Join or found a clan'}</button>`;
+    }
     const job = jobOf(b.id);
     if (job) {
       const fin = uiFinishCost(job.tLeft);
@@ -422,6 +431,9 @@ export function initSheet(): void {
         G.sel = keep.id;
         openSheet('info', keep.id);
       }
+    } else if (act === 'openClan') {
+      closeSheet();
+      openClanPanel('clan');
     } else if (act === 'openArmy') openSheet('army');
   });
 }
