@@ -10,13 +10,13 @@
 #   6. nginx vhost (/ → web, /api → api) + Let's Encrypt TLS
 #
 # Usage (as root on the VPS):
-#   curl -fsSL https://raw.githubusercontent.com/fourtisf/warchest-coc/claude/new-session-h7y22l/deploy/vps-deploy.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/fourtisf/warchest-coc/main/deploy/vps-deploy.sh | bash
 # Optional env overrides: BRANCH, DOMAIN, CERT_EMAIL, TIME_SCALE, SKIP_NIVAR_CLEANUP=1
 # =============================================================================
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-https://github.com/fourtisf/warchest-coc.git}"
-BRANCH="${BRANCH:-claude/new-session-h7y22l}"
+BRANCH="${BRANCH:-main}"
 APP_DIR="${APP_DIR:-/var/www/warchest}"
 DOMAIN="${DOMAIN:-warchest.fun}"
 CERT_EMAIL="${CERT_EMAIL:-alfapangestu07@gmail.com}"
