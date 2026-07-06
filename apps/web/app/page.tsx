@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import LiveStats from './live-stats';
+import TokenCa from './token-ca';
 import VillageBackdrop from './village-backdrop';
 
 export default function Landing(): JSX.Element {
@@ -10,6 +11,7 @@ export default function Landing(): JSX.Element {
       <img className="mark" src="/logo.svg" alt="WARCHEST" width={132} height={132} />
       <h1 className="logo">WARCHEST</h1>
       <div className="tag">BUILD · RAID · EARN</div>
+      <TokenCa />
       <Link className="cta" href="/play" prefetch>
         ⚔️ Enter Village
       </Link>

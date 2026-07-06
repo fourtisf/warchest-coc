@@ -98,6 +98,77 @@ body {
   margin: 10px 0 34px;
 }
 
+.landing .ca-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin: -16px 0 28px;
+  padding: 10px 20px;
+  background: rgba(10, 16, 11, 0.72);
+  border: 1px solid rgba(240, 180, 80, 0.32);
+  border-radius: 999px;
+  color: var(--txt);
+  font: 700 13px Rubik, sans-serif;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.landing .ca-chip:hover {
+  border-color: var(--gold);
+  transform: translateY(-1px);
+}
+
+.landing .ca-chip .ca-label {
+  color: var(--gold2);
+  letter-spacing: 0.06em;
+}
+
+.landing .ca-chip .ca-soon {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #cfd8e6;
+  letter-spacing: 0.22em;
+  font-size: 11.5px;
+}
+
+.landing .ca-chip .ca-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  box-shadow: 0 0 10px rgba(242, 180, 48, 0.9);
+  animation: ca-pulse 1.6s ease-in-out infinite;
+}
+
+.landing .ca-chip .ca-value {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 12.5px;
+  color: #d9e4f2;
+  letter-spacing: 0.03em;
+}
+
+.landing .ca-chip .ca-copy {
+  color: var(--gold2);
+}
+
+.landing .ca-chip .ca-flash {
+  color: #3fe0a3;
+  font-size: 12px;
+}
+
+@keyframes ca-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
+}
+
 .landing .cta {
   display: inline-block;
   text-decoration: none;
