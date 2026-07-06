@@ -119,8 +119,10 @@ fi
 # ----------------------------------------------------------- 4. fetch + build
 log "Fetching WARCHEST ($BRANCH)"
 if [ -d "$APP_DIR/.git" ]; then
-  # explicit refspec: single-branch clones otherwise never materialize
-  # origin/<new-branch> ("'origin/main' is not a commit" on old deployments)
+  # older deployments were single-branch clones whose fetch refspec never
+  # materializes origin/<new-branch> ("'origin/main' is not a commit") —
+  # widen the refspec permanently, then fetch the wanted branch explicitly
+  git -C "$APP_DIR" remote set-branches origin '*' 2>/dev/null || true
   git -C "$APP_DIR" fetch origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
   git -C "$APP_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
 else
