@@ -119,7 +119,9 @@ fi
 # ----------------------------------------------------------- 4. fetch + build
 log "Fetching WARCHEST ($BRANCH)"
 if [ -d "$APP_DIR/.git" ]; then
-  git -C "$APP_DIR" fetch origin "$BRANCH"
+  # explicit refspec: single-branch clones otherwise never materialize
+  # origin/<new-branch> ("'origin/main' is not a commit" on old deployments)
+  git -C "$APP_DIR" fetch origin "+refs/heads/$BRANCH:refs/remotes/origin/$BRANCH"
   git -C "$APP_DIR" checkout -B "$BRANCH" "origin/$BRANCH"
 else
   git clone --branch "$BRANCH" "$REPO_URL" "$APP_DIR.tmp"
