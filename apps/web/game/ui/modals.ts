@@ -27,11 +27,12 @@ interface SolProvider {
   signMessage(msg: Uint8Array, display?: string): Promise<{ signature: Uint8Array } | Uint8Array>;
 }
 
-type WalletKind = 'phantom' | 'solflare' | 'backpack';
+type WalletKind = 'phantom' | 'solflare' | 'okx' | 'backpack';
 
 const WALLETS: Record<WalletKind, { name: string; icon: string; install: string }> = {
   phantom: { name: 'Phantom', icon: '👻', install: 'https://phantom.app/download' },
   solflare: { name: 'Solflare', icon: '🔆', install: 'https://solflare.com/download' },
+  okx: { name: 'OKX Wallet', icon: '⬛', install: 'https://www.okx.com/web3' },
   backpack: { name: 'Backpack', icon: '🎒', install: 'https://backpack.app/download' },
 };
 
@@ -40,10 +41,12 @@ function providerFor(kind: WalletKind): SolProvider | null {
     phantom?: { solana?: SolProvider };
     solana?: SolProvider & { isPhantom?: boolean };
     solflare?: SolProvider;
+    okxwallet?: { solana?: SolProvider };
     backpack?: SolProvider;
   };
   if (kind === 'phantom') return w.phantom?.solana ?? (w.solana?.isPhantom ? w.solana : null);
   if (kind === 'solflare') return w.solflare ?? null;
+  if (kind === 'okx') return w.okxwallet?.solana ?? null;
   return w.backpack ?? null;
 }
 
