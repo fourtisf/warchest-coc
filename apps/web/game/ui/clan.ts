@@ -11,16 +11,28 @@ import {
   fmt,
   reqResCap,
   reqTroopCap,
+  tstr,
   type TroopType,
 } from '@warchest/game-core';
-import { api, ApiError, hydrate, type ChatMsg, type ClanBrief, type ClanDto, type ClanReq } from '../api';
+import {
+  api,
+  ApiError,
+  hydrate,
+  nowMs,
+  type ChatMsg,
+  type ClanBrief,
+  type ClanDto,
+  type ClanReq,
+  type WarMe,
+} from '../api';
+import { startWarAttack } from '../battle';
 import { $, $maybe } from '../dom';
 import { SFX } from '../sfx';
 import { G } from '../state';
 import { openOv } from './modals';
 import { toast } from './toasts';
 
-type Tab = 'global' | 'clan';
+type Tab = 'global' | 'clan' | 'war';
 
 const CS = {
   tab: 'global' as Tab,
@@ -31,6 +43,7 @@ const CS = {
   lastId: { global: 0, clan: 0 },
   browse: [] as ClanBrief[],
   reqs: [] as ClanReq[],
+  warMe: null as WarMe | null,
   inflight: false,
 };
 
@@ -53,15 +66,20 @@ function msgRow(m: ChatMsg): string {
       ? ` <button data-ctag="${m.clan.tag}" title="Find ${esc(m.clan.name)}"
           style="background:rgba(242,180,48,.12);border:1px solid rgba(242,180,48,.3);border-radius:7px;color:#ffd977;font:700 10px Rubik,sans-serif;padding:1px 7px;cursor:pointer;vertical-align:1px">⚑ ${esc(m.clan.name)}</button>`
       : '';
+  // official team messages: unmistakable — gold name + DEV chip
+  const dev = m.dev
+    ? ` <span style="background:linear-gradient(180deg,#ffd977,#c98a12);color:#1d1503;border-radius:6px;font:900 9.5px Rubik,sans-serif;padding:1.5px 6px;letter-spacing:.06em;vertical-align:1px">✓ DEV</span>`
+    : '';
   return `<div style="padding:4px 0;font-size:12.5px;line-height:1.45">
-    <b style="color:${mine ? 'var(--war)' : 'var(--gold2)'}">${esc(m.name)}</b>${badge}
+    <b style="color:${m.dev ? '#ffd24a' : mine ? 'var(--war)' : 'var(--gold2)'}">${esc(m.name)}</b>${dev}${badge}
     <span style="color:var(--dim);font-size:10.5px"> ${timeShort(m.at)}</span><br>${esc(m.text)}</div>`;
 }
 
 function paintLog(): void {
   const log = $maybe('chatLog');
-  if (!log) return;
-  const list = CS.msgs[CS.tab];
+  const ch = CS.tab;
+  if (!log || ch === 'war') return;
+  const list = CS.msgs[ch];
   const nearBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
   log.innerHTML = list.length
     ? list.map(msgRow).join('')
@@ -263,11 +281,100 @@ function clanTabHTML(): string {
     ${chatBoxHTML()}`;
 }
 
+/* ------------------------------ clan war ------------------------------ */
+const starRow = (n: number, max = 3): string =>
+  '★'.repeat(Math.min(n, max)) + `<span style="opacity:.25">${'★'.repeat(Math.max(0, max - n))}</span>`;
+
+function warTabHTML(): string {
+  const w = CS.warMe;
+  if (!CS.clan)
+    return `<div style="text-align:center;padding:14px 0 6px">
+      <div style="font-size:42px">⚔️</div>
+      <div style="font-weight:700;margin:6px 0 4px">Clan wars need a clan</div>
+      <div class="meta" style="color:var(--dim)">Join or found one on the Clan tab, then march to war together.</div>
+    </div>`;
+  if (!w) return `<div class="meta" style="color:var(--dim);padding:10px 0">Loading the war table…</div>`;
+  if (w.state === 'searching')
+    return `<div style="text-align:center;padding:14px 0 6px">
+      <div style="font-size:42px">🔍</div>
+      <div style="font-weight:700;margin:6px 0 4px">Searching for a worthy enemy…</div>
+      <div class="meta" style="color:var(--dim)">Matched by clan power. Keep this open or check back soon.</div>
+      ${w.canManage ? `<button class="btn ghost" data-cact="warCancel" style="margin-top:12px;padding:8px 16px">Cancel search</button>` : ''}
+    </div>`;
+  if ((w.state === 'active' || w.state === 'ended') && w.war) {
+    const war = w.war;
+    const over = war.status === 'ended' || w.state === 'ended';
+    const tLeft = Math.max(0, (war.endsAt - nowMs()) / 1000);
+    const usWin = war.us.stars > war.them.stars || (war.us.stars === war.them.stars && war.us.pct > war.them.pct);
+    const banner = over
+      ? `<div style="text-align:center;padding:10px;border-radius:12px;margin-bottom:10px;font-weight:800;
+          background:${war.winner === 'tie' ? 'rgba(255,255,255,.08)' : usWin ? 'rgba(63,224,163,.12)' : 'rgba(255,109,92,.12)'};
+          border:1px solid ${war.winner === 'tie' ? 'rgba(255,255,255,.2)' : usWin ? 'rgba(63,224,163,.4)' : 'rgba(255,109,92,.4)'}">
+          ${war.winner === 'tie' ? '🤝 TIE' : usWin ? '🏆 VICTORY!' : '⚔️ DEFEAT — we go again'}</div>`
+      : `<div class="meta" style="text-align:center;color:var(--dim);margin-bottom:8px">⏳ ends in <b style="color:var(--gold2)">${tstr(tLeft)}</b> · ${war.size}v${war.size} · ${w.war.myAttacksLeft} attack${w.war.myAttacksLeft === 1 ? '' : 's'} left</div>`;
+    const score = `<div class="row" style="justify-content:center;gap:18px;margin:2px 0 10px">
+      <div style="text-align:center"><div style="font-weight:800;font-size:13px">${esc(war.us.name)}</div>
+        <div style="font-size:26px;font-weight:900;color:#ffd24a">${war.us.stars}★</div>
+        <div class="meta" style="color:var(--dim);font-size:10.5px">${war.us.pct.toFixed(1)}%</div></div>
+      <div style="font-weight:900;color:var(--dim)">VS</div>
+      <div style="text-align:center"><div style="font-weight:800;font-size:13px">${esc(war.them.name)}</div>
+        <div style="font-size:26px;font-weight:900;color:#ff8a75">${war.them.stars}★</div>
+        <div class="meta" style="color:var(--dim);font-size:10.5px">${war.them.pct.toFixed(1)}%</div></div>
+    </div>`;
+    const canHit = !over && war.amParticipant && war.myAttacksLeft > 0;
+    const enemy = war.them.roster
+      .map(
+        (r) => `<div class="row" style="padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.07)">
+        <span>🏰</span><b style="flex:1;font-size:12.5px">${esc(r.name)}</b>
+        <span class="meta" style="color:#ffd24a">⚡${fmt(r.power)}</span>
+        <span style="font-size:12px;color:#ffd24a">${starRow(r.bestStars ?? 0)}</span>
+        ${canHit ? `<button class="btn red" data-cact="warAtk" data-arg="${r.uid}" style="padding:4px 11px;font-size:11.5px">⚔️</button>` : ''}
+      </div>`,
+      )
+      .join('');
+    const ours = war.us.roster
+      .map(
+        (r) => `<div class="row" style="padding:5px 0;border-bottom:1px dashed rgba(255,255,255,.06)">
+        <span>⚔️</span><b style="flex:1;font-size:12px">${esc(r.name)}</b>
+        <span class="meta" style="color:var(--dim);font-size:10.5px">${r.attacksUsed ?? 0}/2 attacks</span>
+        <span style="font-size:11.5px;color:#ffd24a">${r.stars ?? 0}★</span>
+      </div>`,
+      )
+      .join('');
+    return `${banner}${score}
+      <div style="font-weight:800;font-size:12.5px;margin:4px 0 2px">🎯 Enemy bases</div>${enemy}
+      <details style="margin-top:8px"><summary style="cursor:pointer;font-size:12px;color:var(--dim)">Our roster (${war.size})</summary>${ours}</details>
+      ${over && w.canManage ? `<button class="btn" data-cact="warSearch" style="width:100%;margin-top:12px">🔍 Find the next war</button>` : ''}`;
+  }
+  // idle
+  return `<div style="text-align:center;padding:12px 0 4px">
+      <div style="font-size:42px">⚔️</div>
+      <div style="font-weight:700;margin:6px 0 4px">No war yet</div>
+      <div class="meta" style="color:var(--dim);line-height:1.5">Matched by clan power · top 10 members fight · 2 attacks each<br>Stars win. Winners split a ◆ war bounty.</div>
+      ${
+        w.canManage
+          ? `<button class="btn" data-cact="warSearch" style="margin-top:12px;padding:10px 20px">🔍 Find a war</button>`
+          : `<div class="meta" style="color:var(--dim);margin-top:10px">Only the clan leader can declare war.</div>`
+      }
+    </div>`;
+}
+
+async function refreshWar(paint = true): Promise<void> {
+  try {
+    CS.warMe = await api.warMe();
+    if (paint && CS.tab === 'war') paintBody();
+  } catch {
+    /* transient */
+  }
+}
+
 function paintBody(): void {
-  const gBtn = $maybe('clanTabG'), cBtn = $maybe('clanTabC');
+  const gBtn = $maybe('clanTabG'), cBtn = $maybe('clanTabC'), wBtn = $maybe('clanTabW');
   if (gBtn) gBtn.classList.toggle('ghost', CS.tab !== 'global');
   if (cBtn) cBtn.classList.toggle('ghost', CS.tab !== 'clan');
-  $('clanBody').innerHTML = CS.tab === 'global' ? chatBoxHTML() : clanTabHTML();
+  if (wBtn) wBtn.classList.toggle('ghost', CS.tab !== 'war');
+  $('clanBody').innerHTML =
+    CS.tab === 'global' ? chatBoxHTML() : CS.tab === 'war' ? warTabHTML() : clanTabHTML();
   lastReqPaint = '';
   paintLog();
   const inp = $maybe('chatInput') as HTMLInputElement | null;
@@ -315,6 +422,7 @@ function runGlobalSearch(q: string): void {
 
 async function pullChat(initial = false): Promise<void> {
   const ch = CS.tab;
+  if (ch === 'war') return; // the war tab has its own refresh
   if (ch === 'clan' && !CS.clan) return;
   try {
     const { msgs, reqs } = await api.chatGet(ch, initial ? undefined : CS.lastId[ch] || undefined);
@@ -331,16 +439,17 @@ async function pullChat(initial = false): Promise<void> {
 
 function sendMsg(): void {
   const inp = $maybe('chatInput') as HTMLInputElement | null;
-  if (!inp) return;
+  const ch = CS.tab;
+  if (!inp || ch === 'war') return;
   const text = inp.value.trim();
   if (!text || CS.inflight) return;
   CS.inflight = true;
   inp.value = '';
   api
-    .chatSend(CS.tab, text)
+    .chatSend(ch, text)
     .then(({ msg }) => {
-      CS.msgs[CS.tab].push(msg);
-      CS.lastId[CS.tab] = msg.id;
+      CS.msgs[ch].push(msg);
+      CS.lastId[ch] = msg.id;
       paintLog();
     })
     .catch((e: unknown) => {
@@ -366,6 +475,10 @@ async function refreshClanMe(): Promise<void> {
 function setTab(tab: Tab): void {
   CS.tab = tab;
   paintBody();
+  if (tab === 'war') {
+    void refreshWar();
+    return;
+  }
   void pullChat(true);
   // the clan tab needs fresh status + a browse list when clanless
   if (tab === 'clan') {
@@ -419,6 +532,7 @@ export function initClanUI(): () => void {
     <div class="row" style="gap:8px;margin:6px 0 10px">
       <button class="btn" id="clanTabG" style="flex:1;padding:8px">💬 Global</button>
       <button class="btn ghost" id="clanTabC" style="flex:1;padding:8px">🛡️ Clan</button>
+      <button class="btn ghost" id="clanTabW" style="flex:1;padding:8px">⚔️ War</button>
     </div>
     <div id="clanBody"></div>
   </div>`;
@@ -426,6 +540,7 @@ export function initClanUI(): () => void {
   (ov.querySelector('[data-close]') as HTMLElement).onclick = () => ov.classList.remove('show');
   $('clanTabG').onclick = () => setTab('global');
   $('clanTabC').onclick = () => setTab('clan');
+  $('clanTabW').onclick = () => setTab('war');
   // delegated actions (rows re-render per paint)
   $('clanBody').addEventListener('click', (e) => {
     const el = (e.target as HTMLElement).closest<HTMLElement>('[data-cact]');
@@ -536,6 +651,25 @@ export function initClanUI(): () => void {
             SFX.play('coin');
           })
           .catch((err: unknown) => toast(err instanceof ApiError ? err.message : 'Could not donate', 'warn'));
+      } else if (act === 'warSearch') {
+        api
+          .warSearch()
+          .then(({ state }) => {
+            toast(state === 'active' ? '⚔️ WAR FOUND — to arms!' : '🔍 Searching for an enemy clan…', 'ok');
+            void refreshWar();
+          })
+          .catch((err: unknown) => toast(err instanceof ApiError ? err.message : 'Could not start', 'warn'));
+      } else if (act === 'warCancel') {
+        api
+          .warCancel()
+          .then(() => {
+            toast('War search cancelled', 'ok');
+            void refreshWar();
+          })
+          .catch((err: unknown) => toast(err instanceof ApiError ? err.message : 'Could not cancel', 'warn'));
+      } else if (act === 'warAtk' && arg) {
+        ov.classList.remove('show');
+        void startWarAttack(arg);
       }
       return;
     }
@@ -552,9 +686,14 @@ export function initClanUI(): () => void {
     }
     if ((e.target as HTMLElement).closest('#chatSend')) sendMsg();
   });
-  // live chat while the modal is open
+  // live chat while the modal is open (war tab refreshes on a slower beat)
+  let warTick = 0;
   const poll = window.setInterval(() => {
     if (document.hidden || !ov.classList.contains('show')) return;
+    if (CS.tab === 'war') {
+      if (++warTick % 3 === 0) void refreshWar();
+      return;
+    }
     void pullChat();
   }, 4000);
   // clan card freshness (members/capacity) — light, only while open

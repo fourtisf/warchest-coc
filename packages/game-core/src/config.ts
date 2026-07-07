@@ -358,6 +358,20 @@ export const reqResCap = (hallLv: number): number =>
   REQ_RES_CAP_BY_HALL[Math.min(Math.max(hallLv, 1), REQ_RES_CAP_BY_HALL.length) - 1]!;
 export const REQ_COOLDOWN_S = 300;
 
+/** Daily caps on RESOURCE donations (anti multi-account funneling). */
+export const AID_GIVE_CAP_DAY = 250000;
+export const AID_RECV_CAP_DAY = 400000;
+
+/* ----------------------------- Clan wars ------------------------------ */
+export const WAR_ATTACKS_PER_MEMBER = 2;
+export const WAR_ROSTER_MAX = 10;
+/** $WAR paid to every roster member at war's end. */
+export const WAR_PRIZE_WIN = 40;
+export const WAR_PRIZE_LOSE = 15;
+export const WAR_PRIZE_TIE = 25;
+/** ◆ earned per star on a war attack (replaces raid loot economics). */
+export const WAR_STAR_WAR = 5;
+
 /**
  * Village power — the CoC-ish strength score shown on clan rosters.
  * Sum of building levels (weighted by kind) + War Lab research + trophies.

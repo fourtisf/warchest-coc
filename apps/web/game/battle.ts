@@ -75,6 +75,20 @@ export function rerollScout(): void {
   void fetchScout(SCOUT.battleId);
 }
 
+/** Clan war: scout an enemy roster base and drop straight into deployment. */
+export async function startWarAttack(defenderId: string): Promise<void> {
+  try {
+    const r = await api.warAttack(defenderId);
+    hydrate(r.village);
+    renderHUD();
+    SCOUT = { battleId: r.battleId, base: baseFromList(r.list, r.seed, r.th, 0) };
+    startBattle();
+    toast('⚔️ War attack — stars win wars, no loot here', 'ok');
+  } catch (e) {
+    toast(e instanceof Error ? e.message : 'Could not launch the war attack', 'warn');
+  }
+}
+
 export function startBattle(): void {
   if (!SCOUT) return;
   closeOv('mm');

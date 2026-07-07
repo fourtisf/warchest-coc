@@ -11,8 +11,10 @@ import { clanRoutes } from './routes/clan';
 import { metaRoutes } from './routes/meta';
 import { pushRoutes } from './routes/push';
 import { villageRoutes } from './routes/village';
+import { warRoutes } from './routes/war';
 
-const app = Fastify({ logger: true });
+// trustProxy: nginx fronts the API — req.ip must be the real client address
+const app = Fastify({ logger: true, trustProxy: true });
 
 await app.register(fastifyCookie);
 
@@ -32,6 +34,7 @@ await app.register(
     battleRoutes(api);
     claimRoutes(api);
     clanRoutes(api);
+    warRoutes(api);
     metaRoutes(api);
     pushRoutes(api);
     adminRoutes(api);

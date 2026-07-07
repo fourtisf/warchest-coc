@@ -6,6 +6,7 @@ import {
   NEXT_COST,
   SPELL_ORDER,
   TROOP_ORDER,
+  WAR_STAR_WAR,
   baseFromList,
   clamp,
   genEnemy,
@@ -22,6 +23,7 @@ import { SPELL_COLUMN, armyOf, asType, capOf, keepLv, levelsOf, spellsOf } from 
 import { serializeVillage } from '../serialize';
 import { pushToUser } from '../push';
 import { bumpDaily, getDaily } from '../store';
+import { rescoreWar } from '../war';
 import { requireUser } from './auth';
 
 interface Snapshot {
@@ -63,19 +65,38 @@ export function battleRoutes(app: FastifyInstance): void {
 
     const seed = randomInt(1, 0x7fffffff);
     const myKeep = keepLv(v.buildings);
-    // matchmaking pool: real villages in ±20% trophy range, not shielded, not online, not banned
+    // matchmaking pool: real villages in ±20% trophy range, not shielded, not
+    // online, not banned, not on the attacker's own network (alt-feeding)
     const lo = Math.floor(v.trophies * 0.8), hi = Math.ceil(v.trophies * 1.2);
-    const candidates = await db.village.findMany({
+    let candidates = await db.village.findMany({
       where: {
         userId: { not: user.id },
         trophies: { gte: lo, lte: hi },
         lastSeen: { lt: new Date(now.getTime() - ONLINE_WINDOW_MS) },
         OR: [{ shieldUntil: null }, { shieldUntil: { lt: now } }],
-        user: { banned: false },
+        user: {
+          banned: false,
+          ...(user.ipHash ? { NOT: { ipHash: user.ipHash } } : {}),
+        },
       },
       select: { userId: true },
       take: 30,
     });
+    // farm guard: the same defender can only be milked 3× per day
+    if (candidates.length) {
+      const recent = await db.battle.findMany({
+        where: {
+          attackerId: user.id,
+          status: 'resolved',
+          resolvedAt: { gt: new Date(now.getTime() - 24 * 3600e3) },
+          defenderId: { not: null },
+        },
+        select: { defenderId: true },
+      });
+      const hits = new Map<string, number>();
+      for (const b of recent) hits.set(b.defenderId!, (hits.get(b.defenderId!) ?? 0) + 1);
+      candidates = candidates.filter((c) => (hits.get(c.userId) ?? 0) < 3);
+    }
 
     let snapshot: Snapshot;
     let defenderId: string | null = null;
@@ -218,12 +239,15 @@ export function battleRoutes(app: FastifyInstance): void {
     const base = baseFromList(snap.list, battle.seed, snap.th, snap.pool);
     const outcome = simulateBattle(base, army, log, spells, levels);
 
+    // clan-war attacks: stars are the prize — no loot, no trophies, no shield
+    const isWar = !!battle.warId;
+
     // consume troops, credit loot (clamped to caps), $WAR with daily soft cap, trophies
     const capG = capOf(v.buildings, 'g', now), capM = capOf(v.buildings, 'm', now);
     // never negative even when the balance sits above cap (starting stash)
-    const gotG = Math.max(0, clamp(v.gold + outcome.lootG, 0, capG) - v.gold);
-    const gotM = Math.max(0, clamp(v.mana + outcome.lootM, 0, capM) - v.mana);
-    let dW = outcome.warEarned;
+    const gotG = isWar ? 0 : Math.max(0, clamp(v.gold + outcome.lootG, 0, capG) - v.gold);
+    const gotM = isWar ? 0 : Math.max(0, clamp(v.mana + outcome.lootM, 0, capM) - v.mana);
+    let dW = isWar ? outcome.stars * WAR_STAR_WAR : outcome.warEarned;
     if (dW > 0) {
       const today = await getDaily('raidwar', user.id);
       if (today >= ENV.EARN_DAILY_CAP) dW = Math.floor(dW / 2);
@@ -232,13 +256,15 @@ export function battleRoutes(app: FastifyInstance): void {
     v.gold += gotG;
     v.mana += gotM;
     v.war += dW;
-    v.trophies = Math.max(0, v.trophies + outcome.trophyDelta);
+    v.trophies = isWar ? v.trophies : Math.max(0, v.trophies + outcome.trophyDelta);
     await db.village.update({
       where: { id: v.id },
       data: { gold: v.gold, mana: v.mana, war: v.war, trophies: v.trophies },
     });
     if (dW)
-      await db.warLedger.create({ data: { userId: user.id, delta: dW, reason: 'raid', refId: id } });
+      await db.warLedger.create({
+        data: { userId: user.id, delta: dW, reason: isWar ? 'war' : 'raid', refId: id },
+      });
     await db.army.update({
       where: { villageId: v.id },
       data: {
@@ -253,7 +279,10 @@ export function battleRoutes(app: FastifyInstance): void {
       stat.raids += 1;
       if (stat.raids === 1 && user.refBy) {
         // referral: the inviter earns when the recruit fights their first raid
-        const refV = await db.village.findUnique({ where: { userId: user.refBy } });
+        // (skipped when both accounts sit on the same network — self-invite farm)
+        const inviter = await db.user.findUnique({ where: { id: user.refBy } });
+        const sameNet = !!inviter?.ipHash && inviter.ipHash === user.ipHash;
+        const refV = sameNet ? null : await db.village.findUnique({ where: { userId: user.refBy } });
         if (refV) {
           await db.village.update({ where: { id: refV.id }, data: { war: { increment: 25 } } });
           await db.warLedger.create({
@@ -271,7 +300,8 @@ export function battleRoutes(app: FastifyInstance): void {
     await db.village.update({ where: { id: v.id }, data: { statJson: stat as object } });
 
     // defender consequences: lose looted resources, 12h shield on ≥2★ defeat
-    if (battle.defenderId && outcome.started) {
+    // (war attacks hit a snapshot — the real village is untouched)
+    if (battle.defenderId && outcome.started && !isWar) {
       const dv = await db.village.findUnique({ where: { userId: battle.defenderId } });
       if (dv) {
         await db.village.update({
@@ -309,13 +339,27 @@ export function battleRoutes(app: FastifyInstance): void {
         levelsJson: levels as object,
         stars: outcome.stars,
         pct: outcome.pct,
-        lootG: outcome.lootG,
-        lootM: outcome.lootM,
+        lootG: isWar ? 0 : outcome.lootG,
+        lootM: isWar ? 0 : outcome.lootM,
         warEarned: dW,
-        trophyDelta: outcome.trophyDelta,
+        trophyDelta: isWar ? 0 : outcome.trophyDelta,
         resolvedAt: now,
       },
     });
+
+    // war bookkeeping: record the attack, refresh the scoreboard
+    if (isWar && outcome.started) {
+      await db.warAttack.create({
+        data: {
+          warId: battle.warId!,
+          attackerId: user.id,
+          defenderId: battle.defenderId!,
+          stars: outcome.stars,
+          pct: outcome.pct,
+        },
+      });
+      await rescoreWar(battle.warId!);
+    }
 
     const seasonId = await currentSeason();
     await db.seasonScore.upsert({
@@ -325,7 +369,7 @@ export function battleRoutes(app: FastifyInstance): void {
     });
 
     // tell the defender the moment it happens (fire-and-forget)
-    if (battle.defenderId && outcome.started) {
+    if (battle.defenderId && outcome.started && !isWar) {
       const who =
         user.name ?? (user.wallet ? user.wallet.slice(0, 4) + '…' : 'A raider');
       void pushToUser(battle.defenderId, {

@@ -27,4 +27,10 @@ export const mmss = (s: number): string => {
 };
 
 export const tstr = (s: number): string =>
-  s >= 60 ? Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's' : Math.round(s) + 's';
+  s >= 86400
+    ? Math.floor(s / 86400) + 'd ' + Math.floor((s % 86400) / 3600) + 'h'
+    : s >= 3600
+      ? Math.floor(s / 3600) + 'h ' + Math.floor((s % 3600) / 60) + 'm'
+      : s >= 60
+        ? Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's'
+        : Math.round(s) + 's';

@@ -6,6 +6,8 @@
 import type { FastifyInstance } from 'fastify';
 import { prisma } from '@warchest/db';
 import {
+  AID_GIVE_CAP_DAY,
+  AID_RECV_CAP_DAY,
   CHAT_COOLDOWN_S,
   CHAT_MAX_LEN,
   CLAN_CREATE_COST,
@@ -89,6 +91,14 @@ async function clanInfo(clanId: string, now: Date): Promise<object | null> {
 
 /* one message per CHAT_COOLDOWN_S per user (in-memory: single API process) */
 const lastMsgAt = new Map<string, number>();
+/* repeat guard: the same line again within a minute is spam */
+const lastLine = new Map<string, { text: string; at: number }>();
+
+/* scam guards: no links, no Solana-address-looking strings from non-admins —
+ * launch-day chat WILL be flooded with fake CAs otherwise */
+const LINK_RE =
+  /(https?:\/\/|www\.|t\.me\/|discord\.(gg|com)|[a-z0-9-]{2,}\.(com|net|org|io|fun|xyz|app|gg|finance|money|live|site|link|to)\b)/i;
+const B58_RE = /[1-9A-HJ-NP-Za-km-z]{32,44}/;
 
 export function clanRoutes(app: FastifyInstance): void {
   /* ------------------------------- clans ------------------------------- */
@@ -361,6 +371,16 @@ export function clanRoutes(app: FastifyInstance): void {
       );
       const give = Math.min(want, capRoom);
       if (give <= 0) bad('Their storage is full');
+      // daily aid caps: resource funneling between alt accounts has a ceiling
+      const day = now.toISOString().slice(0, 10);
+      const [dGive, dRecv] = await Promise.all([
+        db.aidDay.findUnique({ where: { userId_day: { userId: user.id, day } } }),
+        db.aidDay.findUnique({ where: { userId_day: { userId: r!.userId, day } } }),
+      ]);
+      if ((dGive?.given ?? 0) + give > AID_GIVE_CAP_DAY)
+        bad('Daily donation limit reached — generous, but that is enough for today');
+      if ((dRecv?.received ?? 0) + give > AID_RECV_CAP_DAY)
+        bad('They already received their daily aid limit');
       const claimed = await db.clanRequest.updateMany({
         where: { id: r!.id, status: 'open', filled: { lte: r!.amount - give } },
         data: { filled: { increment: give } },
@@ -376,6 +396,16 @@ export function clanRoutes(app: FastifyInstance): void {
         bad(`Not enough ${r!.kind === 'gold' ? 'Gold' : 'Mana'}`);
       }
       await db.village.update({ where: { id: rv!.id }, data: { [col]: { increment: give } } });
+      await db.aidDay.upsert({
+        where: { userId_day: { userId: user.id, day } },
+        create: { userId: user.id, day, given: give },
+        update: { given: { increment: give } },
+      });
+      await db.aidDay.upsert({
+        where: { userId_day: { userId: r!.userId, day } },
+        create: { userId: r!.userId, day, received: give },
+        update: { received: { increment: give } },
+      });
       delta = give;
       donorTag = `${r!.kind === 'gold' ? '🪙' : '🔮'}${give.toLocaleString()}`;
     }
@@ -407,7 +437,13 @@ export function clanRoutes(app: FastifyInstance): void {
     }
     // sender's clan rides along — global chat shows it as a tap-to-find badge
     const withClan = {
-      user: { select: { name: true, clanMember: { select: { clan: { select: { id: true, name: true } } } } } },
+      user: {
+        select: {
+          name: true,
+          isAdmin: true,
+          clanMember: { select: { clan: { select: { id: true, name: true } } } },
+        },
+      },
     } as const;
     const msgs = q.after
       ? await db.chatMessage.findMany({
@@ -435,6 +471,7 @@ export function clanRoutes(app: FastifyInstance): void {
         clan: m.user.clanMember
           ? { tag: tagOf(m.user.clanMember.clan.id), name: m.user.clanMember.clan.name }
           : null,
+        ...(m.user.isAdmin ? { dev: true } : {}),
       })),
       // clan channel carries the aid board too (polled together with chat)
       ...(clanId ? { reqs: await openRequests(clanId) } : {}),
@@ -459,6 +496,15 @@ export function clanRoutes(app: FastifyInstance): void {
     } else if ((await hallLvOf(user.id, now)) < 1) {
       bad('Build a Clan Hall to talk in the war room');
     }
+    if (!user.isAdmin) {
+      if (LINK_RE.test(text)) bad('Links are not allowed in chat');
+      if (B58_RE.test(text))
+        bad('Addresses are not allowed in chat — the only official CA lives on warchest.fun');
+      const prev = lastLine.get(user.id);
+      if (prev && prev.text === text && now.getTime() - prev.at < 60_000)
+        bad('You just said that');
+      lastLine.set(user.id, { text, at: now.getTime() });
+    }
     const last = lastMsgAt.get(user.id) ?? 0;
     if (now.getTime() - last < CHAT_COOLDOWN_S * 1000) bad('Easy, commander — one message every few seconds');
     lastMsgAt.set(user.id, now.getTime());
@@ -472,6 +518,7 @@ export function clanRoutes(app: FastifyInstance): void {
         text,
         at: msg.createdAt.getTime(),
         clan: memb ? { tag: tagOf(memb.clanId), name: memb.clan.name } : null,
+        ...(user.isAdmin ? { dev: true } : {}),
       },
     };
   });

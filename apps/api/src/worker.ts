@@ -9,6 +9,7 @@ import { ENV } from './env';
 import { pushReady } from './push';
 import { sweepCompletions } from './push-sweep';
 import { sendWar } from './solana';
+import { closeWars, tryMatchWars } from './war';
 
 const MAX_ATTEMPTS = 5;
 const POLL_MS = 10_000;
@@ -69,6 +70,12 @@ setInterval(() => {
   lastSweep = now;
   sweepCompletions(since, now).catch((e) => console.error('push sweep error:', e));
 }, 60_000);
+// clan wars: pair searching clans + close finished wars
+setInterval(() => {
+  const now = new Date();
+  tryMatchWars(now).catch((e) => console.error('war match error:', e));
+  closeWars(now).catch((e) => console.error('war close error:', e));
+}, 30_000);
 // chat hygiene: hourly, drop global chatter after 24h and clan chatter after 7d
 setInterval(() => {
   const db = prisma();

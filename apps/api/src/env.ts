@@ -53,6 +53,9 @@ export const ENV = {
   // battle validation bounds
   SCOUT_TTL_MIN: num(process.env.SCOUT_TTL_MIN, 30),
   MAX_PREROLL_TICKS: num(process.env.MAX_PREROLL_TICKS, 60 * 600),
+
+  /** clan war length, seconds (24h default; short values for testing) */
+  WAR_DURATION_S: num(process.env.WAR_DURATION_S, 24 * 3600),
 } as const;
 
 export const rpcUrl = (): string =>

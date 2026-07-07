@@ -290,6 +290,11 @@ export const api = {
     }),
   chatSend: (ch: 'global' | 'clan', text: string) =>
     call<{ ok: true; msg: ChatMsg }>('POST', '/chat', { ch, text }),
+  warMe: () => call<WarMe>('GET', '/war/me'),
+  warSearch: () => call<{ ok: true; state: string }>('POST', '/war/search', {}),
+  warCancel: () => call<{ ok: true }>('POST', '/war/search/cancel', {}),
+  warAttack: (defenderId: string) =>
+    call<ScoutResponse>('POST', '/war/attack', { defenderId }),
   pushKey: () => call<{ key: string }>('GET', '/push/key'),
   pushSubscribe: (endpoint: string, keys: { p256dh: string; auth: string }) =>
     call<{ ok: true }>('POST', '/push/subscribe', { endpoint, keys }),
@@ -356,6 +361,8 @@ export interface ChatMsg {
   at: number;
   /** sender's clan (badge in global chat; tap to find that clan) */
   clan?: { tag: string; name: string } | null;
+  /** official team message (admin) — renders the DEV badge */
+  dev?: boolean;
 }
 
 /** Clan aid request (troops in housing space, resources in raw amount). */
@@ -367,6 +374,34 @@ export interface ClanReq {
   amount: number;
   filled: number;
   donors: Array<{ n: string; t: string }>;
+}
+
+/** One line of a war roster (ours carries attacksUsed/stars; theirs bestStars). */
+export interface WarRosterRow {
+  uid: string;
+  name: string;
+  power: number;
+  attacksUsed?: number;
+  stars?: number;
+  bestStars?: number;
+}
+
+export interface WarDto {
+  id: string;
+  status: 'active' | 'ended';
+  endsAt: number;
+  size: number;
+  winner: string | null;
+  us: { name: string; stars: number; pct: number; roster: WarRosterRow[] };
+  them: { name: string; stars: number; pct: number; roster: WarRosterRow[] };
+  amParticipant: boolean;
+  myAttacksLeft: number;
+}
+
+export interface WarMe {
+  state: 'noclan' | 'idle' | 'searching' | 'active' | 'ended';
+  war?: WarDto;
+  canManage?: boolean;
 }
 
 export interface BattleOutcomeDto {

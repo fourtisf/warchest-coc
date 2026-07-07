@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { prisma, type User } from '@warchest/db';
 import { z } from 'zod';
 import { COOKIE, setSessionCookie, signSession, userIdFromRequest, verifyWalletSignature } from '../auth';
@@ -10,12 +10,25 @@ import { serializeVillage } from '../serialize';
 import { store } from '../store';
 import { createUserWithVillage } from '../village-init';
 
+/** Salted hash of the client IP — never the raw address (privacy). */
+export function ipHashOf(req: FastifyRequest): string | null {
+  const ip = req.ip;
+  if (!ip) return null;
+  return createHash('sha256').update(`${ip}|${ENV.JWT_SECRET}`).digest('hex').slice(0, 32);
+}
+
 export async function requireUser(req: FastifyRequest): Promise<User> {
   const uid = await userIdFromRequest(req);
   if (!uid) throw Object.assign(new Error('unauthorized'), { statusCode: 401 });
   const user = await prisma().user.findUnique({ where: { id: uid } });
   if (!user) throw Object.assign(new Error('unauthorized'), { statusCode: 401 });
   if (user.banned) throw Object.assign(new Error('account banned'), { statusCode: 403 });
+  // keep the multi-account heuristic fresh (cheap: only writes on change)
+  const h = ipHashOf(req);
+  if (h && user.ipHash !== h) {
+    user.ipHash = h;
+    void prisma().user.update({ where: { id: user.id }, data: { ipHash: h } }).catch(() => undefined);
+  }
   return user;
 }
 
@@ -34,12 +47,15 @@ export function authRoutes(app: FastifyInstance): void {
     if (uid) user = await prisma().user.findUnique({ where: { id: uid } });
     if (!user || user.banned) {
       const newId = await createUserWithVillage();
+      const h = ipHashOf(req);
+      if (h) await prisma().user.update({ where: { id: newId }, data: { ipHash: h } });
       // referral: ?ref=<player id suffix> — reward lands on the recruit's first raid
       if (body.ref && /^[A-Za-z0-9]{4,12}$/.test(body.ref)) {
         const inviter = await prisma().user.findFirst({
           where: { id: { endsWith: body.ref.toLowerCase() } },
         });
-        if (inviter && inviter.id !== newId)
+        // same network as the inviter → no referral credit (self-invite farm)
+        if (inviter && inviter.id !== newId && (!h || inviter.ipHash !== h))
           await prisma().user.update({ where: { id: newId }, data: { refBy: inviter.id } });
       }
       user = await prisma().user.findUniqueOrThrow({ where: { id: newId } });

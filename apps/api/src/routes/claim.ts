@@ -37,6 +37,27 @@ export function claimRoutes(app: FastifyInstance): void {
       });
 
     const db = prisma();
+    // multi-account guard: a network of alts can't fan out claims all day
+    if (user.ipHash) {
+      const siblings = await db.user.findMany({
+        where: { ipHash: user.ipHash, id: { not: user.id } },
+        select: { id: true },
+      });
+      if (siblings.length) {
+        const dayStart = new Date(now);
+        dayStart.setUTCHours(0, 0, 0, 0);
+        const n = await db.claim.count({
+          where: {
+            userId: { in: [user.id, ...siblings.map((s) => s.id)] },
+            createdAt: { gte: dayStart },
+          },
+        });
+        if (n >= 3)
+          return reply
+            .code(429)
+            .send({ error: 'Too many claims from this network today — try again tomorrow' });
+      }
+    }
     const fee = Math.floor((amount * ENV.CLAIM_FEE_BPS) / 10000);
     v.war -= amount;
     await db.village.update({ where: { id: v.id }, data: { war: v.war } });

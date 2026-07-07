@@ -18,6 +18,8 @@ model User {
   createdAt DateTime  @default(now())
   banned    Boolean   @default(false)
   isAdmin   Boolean   @default(false)
+  /// salted hash of the last seen client IP — multi-account heuristics only
+  ipHash    String?
   village   Village?
   pushSubs  PushSub[]
   clanMember ClanMember?
@@ -129,9 +131,64 @@ model Clan {
   badge     Int          @default(0)
   leaderId  String
   createdAt DateTime     @default(now())
+  /// clan-war lifecycle: idle | searching | war
+  warState  String       @default("idle")
+  /// the active war, while warState = "war"
+  warId     String?
   members   ClanMember[]
   messages  ChatMessage[]
   requests  ClanRequest[]
+}
+
+/// A clan-vs-clan war: fixed rosters, 2 attacks per member, best-per-defender stars.
+model War {
+  id          String      @id @default(cuid())
+  clanAId     String
+  clanBId     String
+  /// denormalized names (survive clan renames/disbands for history)
+  nameA       String
+  nameB       String
+  status      String      @default("active") // active | ended
+  startsAt    DateTime    @default(now())
+  endsAt      DateTime
+  /// participants per side, snapshotted at declaration: [{uid,name,power}]
+  rosterAJson Json
+  rosterBJson Json
+  starsA      Int         @default(0)
+  starsB      Int         @default(0)
+  /// average best destruction % per enemy base (tiebreaker)
+  pctA        Float       @default(0)
+  pctB        Float       @default(0)
+  winner      String?     // clan id | "tie"
+  attacks     WarAttack[]
+
+  @@index([status, endsAt])
+  @@index([clanAId, startsAt])
+  @@index([clanBId, startsAt])
+}
+
+model WarAttack {
+  id         Int      @id @default(autoincrement())
+  warId      String
+  war        War      @relation(fields: [warId], references: [id], onDelete: Cascade)
+  attackerId String
+  defenderId String
+  stars      Int
+  pct        Float
+  createdAt  DateTime @default(now())
+
+  @@index([warId, attackerId])
+}
+
+/// Daily aid totals (resource donations) — multi-account funneling caps.
+model AidDay {
+  userId   String
+  /// UTC day key, "YYYY-MM-DD"
+  day      String
+  given    Int    @default(0)
+  received Int    @default(0)
+
+  @@id([userId, day])
 }
 
 /// CoC-style aid request: one open ask per member, filled by clanmates.
@@ -239,6 +296,8 @@ model Battle {
   revenged             Boolean  @default(false)
   /// attacker troop research levels at resolve time (replay determinism)
   levelsJson           Json?
+  /// set when this battle is a clan-war attack (no loot/trophies/shield)
+  warId                String?
 
   @@index([attackerId, status])
   @@index([defenderId, resolvedAt])
