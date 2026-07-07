@@ -194,9 +194,29 @@ html.wc-play body{font-family:'Rubik',system-ui,sans-serif;color:var(--txt);user
 .toast.ok{border-color:rgba(63,224,163,.5)} .toast.warn{border-color:rgba(224,82,82,.5)}
 @keyframes tIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:none}}
 
+/* phones + narrow tablets: the top-right pill rows must wrap INSIDE the
+   viewport — on portrait phones they used to run off the right edge
+   (wallet / builders / settings unreachable) */
+@media (max-width:760px){
+  #hudTop{padding:8px 8px;gap:6px}
+  #hudTopL{gap:5px}
+  #hudTopR{max-width:64%;gap:5px}
+  #hudTopR .row{flex-wrap:wrap;justify-content:flex-end;gap:5px !important;row-gap:5px}
+  .chip{min-width:104px;padding:4px 10px 4px 5px}
+  .chip .val{font-size:12.5px}
+  .chip .bar{width:52px}
+  .chip .ico{width:19px;height:19px;font-size:11.5px}
+  .pill{padding:6px 10px;font-size:12px;gap:5px}
+  #walletBtn{max-width:150px}
+  #walletBtn #walletTxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:104px}
+  /* X + Telegram live in Settings too — reclaim the space on phones */
+  #xBtn,#tgBtn{display:none}
+}
+
 @media (max-width:560px){
-  .chip{min-width:112px}.chip .bar{width:64px}
+  .chip{min-width:96px}.chip .bar{width:44px}
   .dockBtn{padding:11px 14px;font-size:13px}.dockBtn.raid{padding:13px 17px;font-size:15px}
+  #dock{bottom:10px;right:8px;gap:8px}
   #intro .logo{font-size:34px}
   .tCard{width:58px;height:72px}
 }
