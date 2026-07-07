@@ -18,6 +18,21 @@ export const pushSupported = (): boolean =>
   'PushManager' in window &&
   'Notification' in window;
 
+/** iPhone/iPad — including iPadOS masquerading as macOS. */
+export const isIOS = (): boolean =>
+  typeof navigator !== 'undefined' &&
+  (/iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1));
+
+export const isAndroid = (): boolean =>
+  typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
+
+/** Already running as an installed app (home-screen PWA)? */
+export const isStandalone = (): boolean =>
+  typeof window !== 'undefined' &&
+  (window.matchMedia?.('(display-mode: standalone)').matches ||
+    (navigator as { standalone?: boolean }).standalone === true);
+
 export async function registerSW(): Promise<ServiceWorkerRegistration | null> {
   if (!pushSupported()) return null;
   try {

@@ -161,6 +161,10 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
       <span style="font-weight:600">Notifications <span style="color:var(--dim);font-weight:600;font-size:11px">raids · builds · research</span></span>
       <button class="btn ghost" id="pushToggle">Off</button>
     </div>
+    <div class="row" id="installRow" style="display:none;justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+      <span style="font-weight:600">Install app <span style="color:var(--dim);font-weight:600;font-size:11px">home-screen icon + alerts</span></span>
+      <button class="btn ghost" id="installBtn">Install</button>
+    </div>
     <div class="row" style="justify-content:space-between;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
       <span style="font-weight:600">Music</span><button class="btn ghost" id="musicToggle">On</button>
     </div>
@@ -176,6 +180,15 @@ export const GAME_MARKUP = `<canvas id="game"></canvas>
       <a class="btn ghost" href="https://x.com/Warchestfun" target="_blank" rel="noopener noreferrer" style="text-decoration:none;display:inline-flex;align-items:center;gap:7px"><svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor" style="display:block"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> @Warchestfun</a>
     </div>
 
+  </div>
+</div>
+
+<div class="overlay" id="installGuide">
+  <div class="modal">
+    <button class="x" data-close="installGuide">✕</button>
+    <h2 class="disp">📲 Install WARCHEST</h2>
+    <div class="sub">Get the home-screen icon — and raid / build / research alerts</div>
+    <div id="installSteps"></div>
   </div>
 </div>
 

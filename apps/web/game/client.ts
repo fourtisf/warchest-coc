@@ -24,7 +24,7 @@ import { buildGround } from './ground';
 import { initInput } from './input';
 import { GAME_MARKUP } from './markup';
 import { MUSIC } from './music';
-import { disablePush, enablePush, pushEnabled, pushSupported, registerSW } from './push';
+import { disablePush, enablePush, isAndroid, isIOS, isStandalone, pushEnabled, pushSupported, registerSW } from './push';
 import { render } from './render';
 import { SFX } from './sfx';
 import { freshState, G, jobOf } from './state';
@@ -47,6 +47,30 @@ import { toast } from './ui/toasts';
 
 /** Mirrors the server's daily LADDER (auth.ts) for display; server pays authoritatively. */
 const DAILY_LADDER = [5, 8, 12, 16, 20, 25, 30];
+
+/* ---------------- install-to-home-screen (mobile push needs it on iOS) ---------------- */
+interface InstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+}
+let deferredInstall: InstallPromptEvent | null = null;
+
+const step = (n: number, html: string): string =>
+  `<div class="row" style="gap:12px;padding:9px 0;border-bottom:1px dashed rgba(255,255,255,.08)">
+    <span style="flex:0 0 26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:var(--gold);color:#1d1503;font-weight:900;font-size:13px">${n}</span>
+    <span style="font-size:13.5px;line-height:1.45">${html}</span></div>`;
+
+function openInstallGuide(): void {
+  const ios = isIOS();
+  $('installSteps').innerHTML = ios
+    ? step(1, 'Open <b>warchest.fun</b> in <b>Safari</b>, then tap the <b>Share</b> button <span style="font-size:16px">⎋</span> (square with the arrow).') +
+      step(2, 'Scroll down and tap <b>“Add to Home Screen”</b> <span style="font-size:15px">➕</span>, then <b>Add</b>.') +
+      step(3, 'Open <b>WARCHEST</b> from your Home Screen → ⚙️ Settings → turn <b>🔔 Notifications On</b>.') +
+      `<div class="meta" style="margin-top:10px;color:var(--dim);font-size:11.5px">iPhone only allows game alerts for installed apps — Apple's rule, two taps to fix.</div>`
+    : step(1, 'Tap your browser menu <b>⋮</b> (top right).') +
+      step(2, 'Tap <b>“Add to Home screen”</b> (or <b>“Install app”</b>), then confirm.') +
+      step(3, 'Open <b>WARCHEST</b> from your Home Screen → ⚙️ Settings → turn <b>🔔 Notifications On</b>.');
+  openOv('installGuide');
+}
 
 function openDaily(): void {
   const day = Math.min(G.daily.streak + 1, 7);
@@ -74,12 +98,28 @@ function wireButtons(): void {
     void pushEnabled().then((on) => {
       $('pushToggle').textContent = on ? 'On' : 'Off';
     });
+    // install row: native prompt when the browser offers one, a how-to
+    // guide on mobile otherwise; nothing once already installed
+    const row = $('installRow');
+    if (isStandalone()) row.style.display = 'none';
+    else if (deferredInstall || isIOS() || isAndroid()) {
+      row.style.display = 'flex';
+      $('installBtn').textContent = deferredInstall ? 'Install' : 'How to';
+    } else row.style.display = 'none';
     openOv('settings');
+  };
+  $('installBtn').onclick = () => {
+    SFX.play('tap');
+    if (deferredInstall) void deferredInstall.prompt();
+    else openInstallGuide();
   };
   $('pushToggle').onclick = () => {
     const btn = $('pushToggle');
     if (!pushSupported()) {
-      toast('This browser does not support notifications', 'warn');
+      // iPhone in the browser tab: push exists — but only for installed
+      // apps. Walk them through it instead of a dead-end toast.
+      if ((isIOS() || isAndroid()) && !isStandalone()) openInstallGuide();
+      else toast('This browser does not support notifications', 'warn');
       return;
     }
     btn.textContent = '…';
@@ -290,6 +330,18 @@ export function bootGame(root: HTMLElement): () => void {
   // service worker: push + PWA install (harmless if unsupported)
   void registerSW();
 
+  // stash the browser's install offer for the Settings "Install app" button
+  const onInstallPrompt = (e: Event): void => {
+    e.preventDefault();
+    deferredInstall = e as InstallPromptEvent;
+  };
+  const onInstalled = (): void => {
+    deferredInstall = null;
+    toast('📲 Installed — open WARCHEST from your home screen for alerts', 'ok');
+  };
+  window.addEventListener('beforeinstallprompt', onInstallPrompt);
+  window.addEventListener('appinstalled', onInstalled);
+
   // open the server session (guest cookie or existing account)
   let disposed = false;
   const boot = async (): Promise<void> => {
@@ -383,6 +435,8 @@ export function bootGame(root: HTMLElement): () => void {
     clearInterval(poll);
     clearInterval(mailPoll);
     disposeClan();
+    window.removeEventListener('beforeinstallprompt', onInstallPrompt);
+    window.removeEventListener('appinstalled', onInstalled);
     MUSIC.stop();
     disposeBattle();
     disposeCamera();
