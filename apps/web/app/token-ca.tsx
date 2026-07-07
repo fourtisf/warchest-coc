@@ -4,7 +4,7 @@
  *  from "COMING SOON" to a tap-to-copy CA automatically. */
 import { useState } from 'react';
 
-const WAR_CA = 'HDifg6Dr6zhfEfFHDr2o4xspJzxeydSDLK4fw2zGpump';
+const WAR_CA = '';
 
 export default function TokenCa(): JSX.Element {
   const [flash, setFlash] = useState<string | null>(null);
